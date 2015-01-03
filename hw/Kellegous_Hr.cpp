@@ -28,8 +28,14 @@ bool Kellegous_Hr::Update() {
   }
   
   unsigned long now = millis();
-  AddSample(now - last_pulse_at_);
+  unsigned long sample = now - last_pulse_at_;
   last_pulse_at_ = now;
+  if (sample > 2000 || sample < 300) {
+    return 0;
+  }
+  
+  AddSample(sample);
+
   
   // we don't have enough data yet.
   if (count_ < num_samples_) {
