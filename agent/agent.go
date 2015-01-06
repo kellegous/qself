@@ -28,17 +28,17 @@ func serviceStream(con net.Conn) {
 			log.Println(err)
 			return
 		}
-	}
 
-	switch buf[0] {
-	case cmdRst:
-		log.Printf("RST: %v", buf[1:])
-	case cmdHrt:
-		log.Printf("HRT: %0.2f", valueFrom(buf[1:]))
-	case cmdTmp:
-		log.Printf("TMP: %0.2f", valueFrom(buf[1:]))
-	default:
-		log.Panicf("invalid command: %d", buf[0])
+		switch buf[0] {
+		case cmdRst:
+			log.Printf("RST: %v", buf[1:])
+		case cmdHrt:
+			log.Printf("HRT: %0.2f", valueFrom(buf[1:]))
+		case cmdTmp:
+			log.Printf("TMP: %0.2f", valueFrom(buf[1:]))
+		default:
+			log.Panicf("invalid command: %d", buf[0])
+		}
 	}
 }
 
@@ -70,8 +70,13 @@ func startSensorStream(addr string) error {
 
 func main() {
 	flagHttpAddr := flag.String("http", ":8077", "")
+	flagAgntAddr := flag.String("agnt", ":8078", "")
 
 	flag.Parse()
+
+	if err := startSensorStream(*flagAgntAddr); err != nil {
+		log.Panic(err)
+	}
 
 	if err := http.ListenAndServe(*flagHttpAddr, nil); err != nil {
 		log.Panic(err)

@@ -6,8 +6,10 @@ import (
 	"github.com/tarm/goserial"
 	"io"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -55,47 +57,68 @@ func readUntilReset(rw io.ReadWriteCloser) error {
 	}
 }
 
-func valueFrom(buf []byte) float32 {
-	a, b := uint16(buf[0]), uint16(buf[1])
-	return float32(a<<8|b) / 100.0
+func BackoffAfter(n int) {
+	if n < 3 {
+		time.Sleep(200 * time.Millisecond)
+	} else if n < 10 {
+		time.Sleep(1 * time.Second)
+	} else {
+		time.Sleep(5 * time.Second)
+	}
 }
 
-func run(cfg *serial.Config) error {
-	rw, err := serial.OpenPort(cfg)
+func ConnectToAgent(addr string) (net.Conn, error) {
+	a, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer rw.Close()
 
-	if err := readUntilReset(rw); err != nil {
-		return err
+	n := 0
+	for {
+		c, err := net.DialTCP("tcp", nil, a)
+		if err == nil {
+			return c, nil
+		}
+
+		BackoffAfter(n)
+		n++
 	}
+}
+
+func ConnectToSerial(cfg *serial.Config) (io.ReadWriteCloser, error) {
+	n := 0
+	for {
+		rw, err := serial.OpenPort(cfg)
+		if err == nil {
+			if err := readUntilReset(rw); err == nil {
+				return rw, nil
+			}
+		}
+
+		BackoffAfter(n)
+		n++
+	}
+}
+
+func Proxy(r io.ReadWriteCloser, w net.Conn) error {
+	defer r.Close()
+	defer w.Close()
 
 	var buf [3]byte
-
 	for {
-		if _, err := io.ReadFull(rw, buf[:]); err != nil {
+		if _, err := io.ReadFull(r, buf[:]); err != nil {
 			return err
 		}
 
-		switch buf[0] {
-		case cmdRst:
-			log.Println("RST: %v", buf[1:])
-		case cmdHrt:
-			log.Printf("HRT: %0.2f", valueFrom(buf[1:]))
-		case cmdTmp:
-			log.Printf("TMP: %0.2f", valueFrom(buf[1:]))
-		default:
-			return fmt.Errorf("invalid command: %d", buf[0])
+		if _, err := w.Write(buf[:]); err != nil {
+			return err
 		}
 	}
-
-	return nil
 }
 
 func main() {
 	flagDev := flag.String("dev", "", "device")
-	flagAddr := flag.String("addr", "", "address")
+	flagAddr := flag.String("addr", "localhost:8078", "address")
 
 	flag.Parse()
 
@@ -104,7 +127,18 @@ func main() {
 		Baud: 9600,
 	}
 
-	if err := run(&cfg); err != nil {
-		log.Panic(err)
+	for {
+		r, err := ConnectToSerial(&cfg)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		w, err := ConnectToAgent(*flagAddr)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		log.Println("Stream Established")
+		Proxy(r, w)
 	}
 }
