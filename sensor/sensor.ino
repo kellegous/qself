@@ -1,4 +1,3 @@
-#include "Kellegous_Hr.h"
 #include "Kellegous_HrNN.h"
 
 const uint8_t CMD_RST = 0xff;
@@ -10,7 +9,7 @@ const int LDPIN = 13;
 const int TMPIN = 0;
 
 unsigned long last_tmp_at;
-Kellegous_Hr hr(HRPIN, 5);
+Kellegous_HrNN hr(HRPIN);
 
 void send(uint8_t tag, unsigned int val) {
   uint8_t buf[3];
@@ -23,8 +22,6 @@ void send(uint8_t tag, unsigned int val) {
 void setup() {
   Serial.begin(9600);
   pinMode(LDPIN, OUTPUT);
-  hr.Init();
-  
   last_tmp_at = millis();
   
   send(CMD_RST, 0xffff);
@@ -42,9 +39,10 @@ float compute_tmp(float v) {
   return (tc * 9.0 / 5.0) + 32.0;
 }
 
-void loop() {  
-  if (hr.Update()) {
-    send(CMD_HRT, hr.GetHr() * 100);
+void loop() {
+  unsigned int nn;
+  if (hr.Update(&nn)) {
+    send(CMD_HRT, nn);
   }
   
   unsigned long t = millis();

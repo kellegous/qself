@@ -14,9 +14,8 @@ const (
 	cmdTmp byte = 0x01
 )
 
-func valueFrom(buf []byte) float32 {
-	a, b := uint16(buf[0]), uint16(buf[1])
-	return float32(a<<8|b) / 100.0
+func uintValueFrom(buf []byte) uint16 {
+	return uint16(buf[0])<<8 | uint16(buf[1])
 }
 
 func serviceStream(con net.Conn) {
@@ -33,9 +32,9 @@ func serviceStream(con net.Conn) {
 		case cmdRst:
 			log.Printf("RST: %v", buf[1:])
 		case cmdHrt:
-			log.Printf("HRT: %0.2f", valueFrom(buf[1:]))
+			log.Printf("HRT: %d ms", uintValueFrom(buf[1:]))
 		case cmdTmp:
-			log.Printf("TMP: %0.2f", valueFrom(buf[1:]))
+			log.Printf("TMP: %0.2f deg", float32(uintValueFrom(buf[1:]))/100.0)
 		default:
 			log.Panicf("invalid command: %d", buf[0])
 		}
