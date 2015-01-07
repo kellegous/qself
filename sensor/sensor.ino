@@ -1,4 +1,5 @@
 #include "Kellegous_Hr.h"
+#include "Kellegous_HrNN.h"
 
 const uint8_t CMD_RST = 0xff;
 const uint8_t CMD_HRT = 0x00;
