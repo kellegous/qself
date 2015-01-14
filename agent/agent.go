@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"heart"
 	"io"
 	"log"
 	"net"
@@ -19,6 +20,8 @@ func uintValueFrom(buf []byte) uint16 {
 }
 
 func serviceStream(con net.Conn) {
+	hs := heart.NewStats(16)
+
 	defer con.Close()
 
 	var buf [3]byte
@@ -32,7 +35,11 @@ func serviceStream(con net.Conn) {
 		case cmdRst:
 			log.Printf("RST: %v", buf[1:])
 		case cmdHrt:
-			log.Printf("HRT: %d ms", uintValueFrom(buf[1:]))
+			hs.AddInterval(uintValueFrom(buf[1:]))
+			hr := hs.Hr()
+			if hr > 0.0 {
+				log.Printf("HRT: %0.2f bpm", hr)
+			}
 		case cmdTmp:
 			log.Printf("TMP: %0.2f deg", float32(uintValueFrom(buf[1:]))/100.0)
 		default:
