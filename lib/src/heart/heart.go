@@ -24,6 +24,25 @@ func (r *Stats) len() int {
 	return len(r.rrs)
 }
 
+func (r *Stats) Hr() float32 {
+	n := len(r.rrs)
+
+	if n < cap(r.rrs) {
+		return 0.0
+	}
+
+	var s float32
+	for i := 0; i < n; i++ {
+		s += float32(r.rrs[i])
+	}
+
+	if s <= 0.0 {
+		return 0.0
+	}
+
+	return 60000.0 / (s / float32(n))
+}
+
 func NewStats(n int) *Stats {
 	return &Stats{
 		rrs: make([]uint16, 0, n),

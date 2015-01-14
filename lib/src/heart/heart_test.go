@@ -1,8 +1,13 @@
 package heart
 
 import (
+	"math"
 	"testing"
 )
+
+func closeEnough(a, b, thresh float32) bool {
+	return math.Abs(float64(a-b)) < float64(thresh)
+}
 
 func TestCircularityOfRate(t *testing.T) {
 	r := NewStats(8)
@@ -18,5 +23,16 @@ func TestCircularityOfRate(t *testing.T) {
 			t.Errorf("expected length of 8, got %d", r.len())
 		}
 		r.AddInterval(uint16(i * 100))
+	}
+}
+
+func TestHr(t *testing.T) {
+	r := NewStats(4)
+	for i := 0; i < 4; i++ {
+		r.AddInterval(1000)
+	}
+
+	if !closeEnough(60.0, r.Hr(), 0.01) {
+		t.Errorf("expected hr of 60.0, got %0.2f", r.Hr())
 	}
 }
