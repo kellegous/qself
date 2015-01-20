@@ -9,17 +9,18 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class HeartDataService extends Service implements HeartDataNotifier.Observer {
+public class HeartDataService extends Service implements HeartDataNotifier.Observer, Streamer.Listener {
     private static final String TAG = HeartDataService.class.getSimpleName();
 
     private static final int NOTIFICATION_ID = 42;
 
-    private static final List<String> STEAMER_URLS = listOf(
-            "http://10.0.1.4:6661"
-    );
+    private static final InetAddress STREAMER_ADDRESS = addressOf("10.0.1.4");
+    private static final int STREAMER_PORT = 8079;
 
     private HeartDataNotifier mNotifier;
 
@@ -31,8 +32,20 @@ public class HeartDataService extends Service implements HeartDataNotifier.Obser
 
     private final Binder mBinder = new Binder();
 
+    @Override
+    public void steamerDidConnect() {
+        Log.d(TAG, "streamerDidConnect");
+    }
+
+    @Override
+    public void streamerDidDisconnect() {
+        Log.d(TAG, "streamerDidDisconnect");
+
+    }
+
     public interface Listener {
         void readingReceived(HeartDataNotifier.Reading reading);
+        void batteryLevelWasReceived(float pct);
     }
 
     public class Binder extends android.os.Binder {
@@ -41,15 +54,15 @@ public class HeartDataService extends Service implements HeartDataNotifier.Obser
         }
     }
 
-    public HeartDataService() {
+    private static InetAddress addressOf(String host) {
+        try {
+            return InetAddress.getByName(host);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private static List<String> listOf(String... vals) {
-        List<String> l = new ArrayList<>(vals.length);
-        for (int i = 0, n = vals.length; i < n; i++) {
-            l.add(vals[i]);
-        }
-        return l;
+    public HeartDataService() {
     }
 
     @Override
@@ -57,7 +70,8 @@ public class HeartDataService extends Service implements HeartDataNotifier.Obser
         if (mNotifier == null) {
             Log.d(TAG, "creating notifier");
             mNotifier = HeartDataNotifier.connect(this, this);
-            mStreamer = Streamer.start(STEAMER_URLS);
+
+            mStreamer = Streamer.start(STREAMER_ADDRESS, STREAMER_PORT, this);
         }
 
         mNotificationManager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
@@ -74,7 +88,7 @@ public class HeartDataService extends Service implements HeartDataNotifier.Obser
             mNotifier.shutdown();
         }
 
-        mNotificationManager.cancel(NOTIFICATION_ID);
+        mNotificationManager.cancelAll();
 
         mStreamer.stop();
     }
@@ -101,8 +115,8 @@ public class HeartDataService extends Service implements HeartDataNotifier.Obser
 
     @Override
     public void deviceDidDisconnect(BluetoothDevice device) {
-        mNotificationManager.cancel(NOTIFICATION_ID);
-
+        Log.d(TAG, "deviceDidDisconnect");
+        mNotificationManager.cancelAll();
     }
 
     private void updateNotification(HeartDataNotifier.Reading reading) {
@@ -134,11 +148,22 @@ public class HeartDataService extends Service implements HeartDataNotifier.Obser
         }
     }
 
+    @Override
+    public void batteryLevelWasReceived(float pct) {
+        for (int i = 0, n = mListeners.size(); i < n; i++) {
+            mListeners.get(i).batteryLevelWasReceived(pct);
+        }
+    }
+
     public void addListener(Listener listener) {
         mListeners.add(listener);
     }
 
     public void removeListener(Listener listener) {
         mListeners.remove(listener);
+    }
+
+    public void requestBatteryLevel() {
+        mNotifier.requestBatteryLevel();
     }
 }

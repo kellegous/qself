@@ -8,23 +8,28 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
+
+import org.w3c.dom.Text;
 
 
 /**
  * A simple {@link Fragment} subclass.
  */
 public class MainFragment extends Fragment implements ServiceConnection,
-        HeartDataService.Listener {
+        HeartDataService.Listener, View.OnClickListener {
     private static final String TAG = MainFragment.class.getSimpleName();
 
     private final int REQUEST_ENABLE_BT = 1;
 
     private TextView mRateView;
     private TextView mIntervalView;
+    private TextView mBatteryView;
 
     private HeartDataService mService;
 
@@ -57,11 +62,11 @@ public class MainFragment extends Fragment implements ServiceConnection,
 
         mRateView = (TextView)view.findViewById(R.id.textview_hr);
         mIntervalView = (TextView)view.findViewById(R.id.textview_rr);
+        mBatteryView = (TextView)view.findViewById(R.id.textview_battery);
+
+        mBatteryView.setOnClickListener(this);
 
         return view;
-    }
-
-    private void log(final String message) {
     }
 
     @Override
@@ -81,6 +86,20 @@ public class MainFragment extends Fragment implements ServiceConnection,
         if (reading.hasInterval()) {
             mIntervalView.setText(String.format("%d ms", reading.interval()));
             mIntervalView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    @Override
+    public void batteryLevelWasReceived(float pct) {
+        int level = (int)(pct * 100.0);
+        mBatteryView.setText(String.format("%d%%", level));
+        mBatteryView.setVisibility(View.VISIBLE);
+    }
+
+    @Override
+    public void onClick(View v) {
+        if (v.getId() == R.id.textview_battery) {
+            mService.requestBatteryLevel();
         }
     }
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"flag"
 	"heart"
 	"io"
@@ -74,13 +75,69 @@ func startSensorStream(addr string) error {
 	return nil
 }
 
+func serviceStreamer(c net.Conn) {
+	log.Println("streamer connected")
+	defer c.Close()
+
+	var t uint64
+	var hr byte
+	var rr uint16
+
+	for {
+		if err := binary.Read(c, binary.LittleEndian, &t); err != nil {
+			return
+		}
+
+		if err := binary.Read(c, binary.LittleEndian, &hr); err != nil {
+			return
+		}
+
+		if err := binary.Read(c, binary.LittleEndian, &rr); err != nil {
+			return
+		}
+
+		log.Printf("t = %d, hr = %d, rr = %d", t, hr, rr)
+	}
+}
+
+func startStreamer(addr string) error {
+	a, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	l, err := net.ListenTCP("tcp", a)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				log.Print(err)
+				continue
+			}
+
+			go serviceStreamer(c)
+		}
+	}()
+
+	return nil
+}
+
 func main() {
 	flagHttpAddr := flag.String("http", ":8077", "")
 	flagAgntAddr := flag.String("agnt", ":8078", "")
+	flagStrmAddr := flag.String("strm", ":8079", "")
 
 	flag.Parse()
 
 	if err := startSensorStream(*flagAgntAddr); err != nil {
+		log.Panic(err)
+	}
+
+	if err := startStreamer(*flagStrmAddr); err != nil {
 		log.Panic(err)
 	}
 

@@ -38,24 +38,16 @@
             android:layout_marginTop="6dp"
             android:visibility="invisible"/>
 
-        <View
+        <TextView
+            android:id="@+id/textview_battery"
             android:layout_width="match_parent"
-            android:layout_height="2dp"
-            android:background="#eee"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="12dp"/>
-
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:padding="12dp">
-
-            <TextView
-                android:id="@+id/textview_console"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:textColor="#999"/>
-        </ScrollView>
+            android:layout_height="wrap_content"
+            android:text="0%"
+            android:gravity="center"
+            android:textColor="#fff"
+            android:textSize="22sp"
+            android:layout_marginTop="6dp"
+            android:visibility="invisible"/>
     </LinearLayout>
 
 </FrameLayout>

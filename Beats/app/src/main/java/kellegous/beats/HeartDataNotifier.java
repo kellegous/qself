@@ -17,6 +17,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,13 +26,19 @@ import java.util.List;
  * Created by knorton on 1/16/15.
  */
 public class HeartDataNotifier extends BluetoothGattCallback {
+    private static final String TAG = HeartDataNotifier.class.getSimpleName();
 
-    private static final ParcelUuid serviceUuid = ParcelUuid.fromString(
+    private static final ParcelUuid heartServiceUuid = ParcelUuid.fromString(
             "0000180d-0000-1000-8000-00805f9b34fb");
-    private static final ParcelUuid characteristicUuid = ParcelUuid.fromString(
+    private static final ParcelUuid heartCharacteristicUuid = ParcelUuid.fromString(
             "00002a37-0000-1000-8000-00805f9b34fb");
-    private static final ParcelUuid descriptorUuid = ParcelUuid.fromString(
+    private static final ParcelUuid heartDescriptorUuid = ParcelUuid.fromString(
             "00002902-0000-1000-8000-00805f9b34fb");
+
+    private static final ParcelUuid batteryServiceUuid = ParcelUuid.fromString(
+            "0000180f-0000-1000-8000-00805f9b34fb");
+    private static final ParcelUuid batteryCharacteristicUuid = ParcelUuid.fromString(
+            "00002a19-0000-1000-8000-00805f9b34fb");
 
     public interface Observer {
         void messageWasLogged(String message);
@@ -39,6 +46,7 @@ public class HeartDataNotifier extends BluetoothGattCallback {
         void deviceDidConnect(BluetoothDevice device);
         void deviceDidDisconnect(BluetoothDevice device);
         void readingWasReceived(Reading reading);
+        void batteryLevelWasReceived(float pct);
     }
 
     public static class Reading {
@@ -126,6 +134,8 @@ public class HeartDataNotifier extends BluetoothGattCallback {
     private final Observer mObserver;
     private final Context mContext;
 
+    private BluetoothGatt mGatt;
+
     private final ScanCallback mScanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
@@ -147,7 +157,7 @@ public class HeartDataNotifier extends BluetoothGattCallback {
     private static List<ScanFilter> filtersForHeartRateService() {
         List<ScanFilter> filters = new ArrayList<>();
         filters.add(new ScanFilter.Builder()
-                .setServiceUuid(serviceUuid)
+                .setServiceUuid(heartServiceUuid)
                 .build());
         return filters;
     }
@@ -189,7 +199,10 @@ public class HeartDataNotifier extends BluetoothGattCallback {
 
     @Override
     public void onConnectionStateChange(final BluetoothGatt gatt, int status, int newState) {
+        Log.d(TAG, "onConnectionStateChange");
+
         if (status != BluetoothGatt.GATT_SUCCESS) {
+            fireDeviceDisconnect(gatt.getDevice());
             return;
         }
 
@@ -210,23 +223,44 @@ public class HeartDataNotifier extends BluetoothGattCallback {
             break;
 
         case BluetoothGatt.STATE_DISCONNECTED:
-            mHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    mObserver.deviceDidDisconnect(gatt.getDevice());
-                }
-            });
+            fireDeviceDisconnect(gatt.getDevice());
             break;
         }
     }
 
     @Override
-    public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-        logOnMainThread("services discovered");
+    public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        Log.d(TAG, "onCharacteristicRead");
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            return;
+        }
 
-        BluetoothGattService service = gatt.getService(serviceUuid.getUuid());
+        if (characteristic.getUuid().equals(batteryCharacteristicUuid.getUuid())) {
+            final byte[] value = characteristic.getValue();
+            if (value == null || value.length == 0) {
+                return;
+            }
+
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    mObserver.batteryLevelWasReceived((float)value[0]/100f);
+                }
+            });
+
+        }
+    }
+
+    @Override
+    public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+        mGatt = gatt;
+        startHeartRateNotifications(gatt);
+    }
+
+    private void startHeartRateNotifications(BluetoothGatt gatt) {
+        BluetoothGattService service = gatt.getService(heartServiceUuid.getUuid());
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(
-                characteristicUuid.getUuid());
+                heartCharacteristicUuid.getUuid());
 
         if (!gatt.setCharacteristicNotification(characteristic, true)) {
             logOnMainThread("ERROR: unable to set characteristic notification");
@@ -234,7 +268,7 @@ public class HeartDataNotifier extends BluetoothGattCallback {
         }
 
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
-                descriptorUuid.getUuid());
+                heartDescriptorUuid.getUuid());
 
         if (!descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)) {
             logOnMainThread("ERROR: unable to set value on descriptor");
@@ -256,5 +290,29 @@ public class HeartDataNotifier extends BluetoothGattCallback {
                 mObserver.readingWasReceived(reading);
             }
         });
+    }
+
+    private void fireDeviceDisconnect(final BluetoothDevice device) {
+        mHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                mObserver.deviceDidDisconnect(device);
+            }
+        });
+    }
+
+    public boolean requestBatteryLevel() {
+        BluetoothGattService service = mGatt.getService(batteryServiceUuid.getUuid());
+        if (service == null) {
+            return false;
+        }
+
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(
+                batteryCharacteristicUuid.getUuid());
+        if (characteristic == null) {
+            return false;
+        }
+
+        return mGatt.readCharacteristic(characteristic);
     }
 }

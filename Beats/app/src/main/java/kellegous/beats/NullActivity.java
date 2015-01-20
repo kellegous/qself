@@ -23,5 +23,6 @@ public class NullActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         startService(new Intent(this, HeartDataService.class));
+        // finish();
     }
 }
