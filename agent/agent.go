@@ -21,7 +21,7 @@ func uintValueFrom(buf []byte) uint16 {
 }
 
 func serviceStream(con net.Conn) {
-	hs := heart.NewStats(16)
+	hs := heart.NewStats(16, 100)
 
 	defer con.Close()
 
@@ -39,7 +39,9 @@ func serviceStream(con net.Conn) {
 			hs.AddInterval(uintValueFrom(buf[1:]))
 			hr := hs.Hr()
 			if hr > 0.0 {
-				log.Printf("HRT: %0.2f bpm", hr)
+				log.Printf("HRT: %0.2f bpm, rmssd=%0.2f, pnn20=%0.2f", hr,
+					hs.HrvRmssd(),
+					hs.HrvPnn20())
 			}
 		case cmdTmp:
 			log.Printf("TMP: %0.2f deg", float32(uintValueFrom(buf[1:]))/100.0)

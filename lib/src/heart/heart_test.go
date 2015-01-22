@@ -10,7 +10,7 @@ func closeEnough(a, b, thresh float32) bool {
 }
 
 func TestCircularityOfRate(t *testing.T) {
-	r := NewStats(8)
+	r := NewStats(8, 8)
 	for i := 0; i < 8; i++ {
 		if r.len() != i {
 			t.Errorf("expected length of %d, got %d", i, r.len())
@@ -27,7 +27,7 @@ func TestCircularityOfRate(t *testing.T) {
 }
 
 func TestHr(t *testing.T) {
-	r := NewStats(4)
+	r := NewStats(4, 4)
 	for i := 0; i < 4; i++ {
 		r.AddInterval(1000)
 	}

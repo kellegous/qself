@@ -1,7 +1,10 @@
 package heart
 
+import "math"
+
 type Stats struct {
 	rrs []uint16
+	min int
 	idx int
 }
 
@@ -27,7 +30,7 @@ func (r *Stats) len() int {
 func (r *Stats) Hr() float32 {
 	n := len(r.rrs)
 
-	if n < cap(r.rrs) {
+	if n < r.min {
 		return 0.0
 	}
 
@@ -43,9 +46,43 @@ func (r *Stats) Hr() float32 {
 	return 60000.0 / (s / float32(n))
 }
 
-func NewStats(n int) *Stats {
+func (r *Stats) HrvRmssd() float64 {
+	n := len(r.rrs)
+
+	if n < r.min {
+		return -1.0
+	}
+
+	s := 0.0
+	for i := 1; i < n; i++ {
+		d := r.rrs[i] - r.rrs[i-1]
+		s += float64(d * d)
+	}
+
+	return math.Sqrt(s / float64(n-1))
+}
+
+func (r *Stats) HrvPnn20() float64 {
+	n := len(r.rrs)
+	if n < r.min {
+		return -1.0
+	}
+
+	c := 0
+	for i := 1; i < n; i++ {
+		d := math.Abs(float64(r.rrs[i] - r.rrs[i-1]))
+		if d > 20 {
+			c++
+		}
+	}
+
+	return float64(c) / float64(n-1)
+}
+
+func NewStats(min, n int) *Stats {
 	return &Stats{
 		rrs: make([]uint16, 0, n),
 		idx: 0,
+		min: min,
 	}
 }
