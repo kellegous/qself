@@ -4,25 +4,77 @@ import (
 	"encoding/binary"
 	"flag"
 	"heart"
+	"heart/store"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
+	"time"
 )
 
 const (
 	cmdRst byte = 0xff
 	cmdHrt byte = 0x00
 	cmdTmp byte = 0x01
+	cmdUpg byte = 0x02
 )
+
+type Context struct {
+	HeartStats *heart.Stats
+	HeartStore *store.Writer
+	TempStore  *store.Writer
+}
+
+func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
+	return nil
+}
+
+func (c *Context) DidReceiveTmp(t time.Time, tmp float32) error {
+	return nil
+}
 
 func uintValueFrom(buf []byte) uint16 {
 	return uint16(buf[0])<<8 | uint16(buf[1])
 }
 
-func serviceStream(con net.Conn) {
-	hs := heart.NewStats(16, 100)
+func ServeAdvanced(con net.Conn, ctx *Context) {
+	var cmd byte
+	var t int64
+	var v uint16
 
+	for {
+		if err := binary.Read(con, binary.LittleEndian, &cmd); err != nil {
+			log.Println(err)
+			return
+		}
+
+		if err := binary.Read(con, binary.LittleEndian, &t); err != nil {
+			log.Panicln(err)
+			return
+		}
+
+		if err := binary.Read(con, binary.LittleEndian, &v); err != nil {
+			log.Panicln(err)
+			return
+		}
+
+		switch cmd {
+		case cmdHrt:
+			if err := ctx.DidReceiveHrm(time.Unix(0, t), v); err != nil {
+				log.Panic(err)
+			}
+		case cmdTmp:
+			if err := ctx.DidReceiveTmp(time.Unix(0, t), float32(v)/100.0); err != nil {
+				log.Panic(err)
+			}
+		case cmdRst, cmdUpg:
+			continue
+		}
+	}
+}
+
+func ServeBasic(con net.Conn, ctx *Context) {
 	defer con.Close()
 
 	var buf [3]byte
@@ -33,76 +85,27 @@ func serviceStream(con net.Conn) {
 		}
 
 		switch buf[0] {
+		case cmdUpg:
+			ServeAdvanced(con, ctx)
+			return
 		case cmdRst:
-			log.Printf("RST: %v", buf[1:])
+			continue
 		case cmdHrt:
-			hs.AddInterval(uintValueFrom(buf[1:]))
-			hr := hs.Hr()
-			if hr > 0.0 {
-				log.Printf("HRT: %0.2f bpm, rmssd=%0.2f, pnn20=%0.2f", hr,
-					hs.HrvRmssd(),
-					hs.HrvPnn20())
+			if err := ctx.DidReceiveHrm(time.Now(), uintValueFrom(buf[1:])); err != nil {
+				log.Print(err)
 			}
 		case cmdTmp:
-			log.Printf("TMP: %0.2f deg", float32(uintValueFrom(buf[1:]))/100.0)
-		default:
-			log.Panicf("invalid command: %d", buf[0])
-		}
-	}
-}
-
-func startSensorStream(addr string) error {
-	adr, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return err
-	}
-
-	lst, err := net.ListenTCP("tcp", adr)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for {
-			con, err := lst.Accept()
-			if err != nil {
+			if err := ctx.DidReceiveTmp(time.Now(), float32(uintValueFrom(buf[1:]))/100.0); err != nil {
 				log.Print(err)
-				continue
 			}
-
-			go serviceStream(con)
-		}
-	}()
-
-	return nil
-}
-
-func serviceStreamer(c net.Conn) {
-	log.Println("streamer connected")
-	defer c.Close()
-
-	var t uint64
-	var hr byte
-	var rr uint16
-
-	for {
-		if err := binary.Read(c, binary.LittleEndian, &t); err != nil {
+		default:
+			log.Print("invalid command: %d", buf[0])
 			return
 		}
-
-		if err := binary.Read(c, binary.LittleEndian, &hr); err != nil {
-			return
-		}
-
-		if err := binary.Read(c, binary.LittleEndian, &rr); err != nil {
-			return
-		}
-
-		log.Printf("t = %d, hr = %d, rr = %d", t, hr, rr)
 	}
 }
 
-func startStreamer(addr string) error {
+func ListenForSensors(addr string, ctx *Context) error {
 	a, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return err
@@ -115,31 +118,63 @@ func startStreamer(addr string) error {
 
 	go func() {
 		for {
-			c, err := l.Accept()
+			con, err := l.Accept()
 			if err != nil {
 				log.Print(err)
 				continue
 			}
 
-			go serviceStreamer(c)
+			go ServeBasic(con, ctx)
 		}
 	}()
 
 	return nil
 }
 
+func MakeContext(ctx *Context, dir string) error {
+	hc := store.Config{
+		Dir: filepath.Join(dir, "hrm"),
+		NeedsUpload: func(filename string) store.UploadOp {
+			return store.UploadRemove
+		},
+	}
+
+	tc := store.Config{
+		Dir: filepath.Join(dir, "tmp"),
+		NeedsUpload: func(filename string) store.UploadOp {
+			return store.UploadRemove
+		},
+	}
+
+	hs, err := store.Start(&hc)
+	if err != nil {
+		return err
+	}
+
+	ts, err := store.Start(&tc)
+	if err != nil {
+		// TODO(knorton): shutdown hs
+		return err
+	}
+
+	ctx.HeartStats = heart.NewStats(16, 100)
+	ctx.HeartStore = hs
+	ctx.TempStore = ts
+	return nil
+}
+
 func main() {
 	flagHttpAddr := flag.String("http", ":8077", "")
 	flagAgntAddr := flag.String("agnt", ":8078", "")
-	flagStrmAddr := flag.String("strm", ":8079", "")
 
 	flag.Parse()
 
-	if err := startSensorStream(*flagAgntAddr); err != nil {
+	var ctx Context
+	if err := MakeContext(&ctx, "data"); err != nil {
 		log.Panic(err)
 	}
 
-	if err := startStreamer(*flagStrmAddr); err != nil {
+	if err := ListenForSensors(*flagAgntAddr, &ctx); err != nil {
 		log.Panic(err)
 	}
 

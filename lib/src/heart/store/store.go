@@ -15,7 +15,7 @@ type UploadOp int
 
 const (
 	UploadRemove UploadOp = iota
-	UploadKeep   UploadOp
+	UploadKeep
 )
 
 type Config struct {
@@ -25,11 +25,6 @@ type Config struct {
 	// TODO(knorton): Error callback
 }
 
-// TODO(knorton): Here is what this will do.
-//  (1) write each sample to a local file w/ timestamp
-//  (2) at predefined times, it will push the file to GCS(?)
-//  (3) in case of error, it will need to reach out to me in
-//      some way. this will probably just be a callback here.
 type Writer struct {
 	cfg *Config
 	w   io.WriteCloser
@@ -83,7 +78,10 @@ func (w *Writer) openFor(t time.Time) error {
 
 	go upload(w.cfg, filenameFor(w.cfg, w.s))
 
-	f, err := os.OpenFile(filenameFor(w.cfg, ts), os.O_RDWR|os.O_APPEND, os.ModePerm)
+	f, err := os.OpenFile(
+		filenameFor(w.cfg, ts),
+		os.O_CREATE|os.O_APPEND|os.O_RDWR,
+		0666)
 	if err != nil {
 		return err
 	}
@@ -119,8 +117,8 @@ func (w *Writer) close() error {
 func Start(cfg *Config) (*Writer, error) {
 	// ensure we have a directory
 	if _, err := os.Stat(cfg.Dir); err != nil {
-		if err := os.MkdirAll(cfg.Dir, os.ModePerm); err != nil {
-			return err
+		if err := os.MkdirAll(cfg.Dir, 0777); err != nil {
+			return nil, err
 		}
 	}
 
@@ -143,7 +141,7 @@ func Start(cfg *Config) (*Writer, error) {
 	}()
 
 	// return the Writer
-	return w, err
+	return w, nil
 }
 
 func stampFor(t time.Time) string {
