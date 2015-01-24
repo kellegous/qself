@@ -4,13 +4,17 @@ import (
 	"encoding/binary"
 	"flag"
 	"heart"
-	"heart/store"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"path/filepath"
+	"store"
 	"time"
+)
+
+const (
+	heartResetAfter = 2 * time.Second
 )
 
 const (
@@ -21,16 +25,51 @@ const (
 )
 
 type Context struct {
-	HeartStats *heart.Stats
-	HeartStore *store.Writer
-	TempStore  *store.Writer
+	heartStats  *heart.Stats
+	heartStore  *store.Writer
+	lastHeartAt time.Time
+	tempStore   *store.Writer
+	lastTemp    uint16
+}
+
+func tmpFromRaw(raw uint16) float32 {
+	return float32(raw) / 100.0
+}
+
+func rawFromTmp(tmp float32) uint16 {
+	return uint16(tmp * 100.0)
 }
 
 func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
+	c.heartStore.Write(t, rr)
+
+	hs := c.heartStats
+
+	if t.Sub(c.lastHeartAt) > heartResetAfter {
+		log.Println("resetting heart stats")
+		hs.Reset()
+	}
+	c.lastHeartAt = t
+
+	if hs.AddInterval(rr) {
+		log.Printf("hr: %0.2f, hrv (RMSSD): %0.2f, hrv (pNN20): %0.2f",
+			hs.Hr(),
+			hs.HrvRmssd(),
+			hs.HrvPnn20())
+	}
+
 	return nil
 }
 
-func (c *Context) DidReceiveTmp(t time.Time, tmp float32) error {
+func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
+	if raw == c.lastTemp {
+		return nil
+	}
+
+	c.lastTemp = raw
+	c.tempStore.Write(t, raw)
+	log.Printf("tmp: %0.2f", tmpFromRaw(raw))
+
 	return nil
 }
 
@@ -65,7 +104,7 @@ func ServeAdvanced(con net.Conn, ctx *Context) {
 				log.Panic(err)
 			}
 		case cmdTmp:
-			if err := ctx.DidReceiveTmp(time.Unix(0, t), float32(v)/100.0); err != nil {
+			if err := ctx.DidReceiveTmp(time.Unix(0, t), v); err != nil {
 				log.Panic(err)
 			}
 		case cmdRst, cmdUpg:
@@ -95,7 +134,7 @@ func ServeBasic(con net.Conn, ctx *Context) {
 				log.Print(err)
 			}
 		case cmdTmp:
-			if err := ctx.DidReceiveTmp(time.Now(), float32(uintValueFrom(buf[1:]))/100.0); err != nil {
+			if err := ctx.DidReceiveTmp(time.Now(), uintValueFrom(buf[1:])); err != nil {
 				log.Print(err)
 			}
 		default:
@@ -157,9 +196,9 @@ func MakeContext(ctx *Context, dir string) error {
 		return err
 	}
 
-	ctx.HeartStats = heart.NewStats(16, 100)
-	ctx.HeartStore = hs
-	ctx.TempStore = ts
+	ctx.heartStats = heart.NewStats(16, 100)
+	ctx.heartStore = hs
+	ctx.tempStore = ts
 	return nil
 }
 

@@ -8,7 +8,7 @@ type Stats struct {
 	idx int
 }
 
-func (r *Stats) AddInterval(i uint16) {
+func (r *Stats) AddInterval(i uint16) bool {
 	n, c := len(r.rrs), cap(r.rrs)
 	if n < c {
 		r.rrs = append(r.rrs, i)
@@ -16,6 +16,8 @@ func (r *Stats) AddInterval(i uint16) {
 		r.rrs[r.idx] = i
 		r.idx = (r.idx + 1) % c
 	}
+
+	return len(r.rrs) >= r.min
 }
 
 func (r *Stats) Reset() {

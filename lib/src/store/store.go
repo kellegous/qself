@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+// TODO(knorton): we do have one issue with the way this works. If we fail to write
+// a full 11 bytes for a record, we will corrupt the stream afterward, which is quite
+// terrible. Solutions are to copy the existing file 11 bytes at a time throwing out
+// any non-aligning tail. Another option is to write verification points into the
+// stream.
+
 type UploadOp int
 
 const (
