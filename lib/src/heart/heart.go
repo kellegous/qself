@@ -48,6 +48,10 @@ func (r *Stats) Hr() float32 {
 	return 60000.0 / (s / float32(n))
 }
 
+func (r *Stats) HrvLnRmssd20() float64 {
+	return math.Log(r.HrvRmssd()) * 20.0
+}
+
 func (r *Stats) HrvRmssd() float64 {
 	n := len(r.rrs)
 

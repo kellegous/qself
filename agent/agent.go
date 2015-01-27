@@ -52,10 +52,11 @@ func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
 	c.lastHeartAt = t
 
 	if hs.AddInterval(rr) {
-		log.Printf("hr: %0.2f, hrv (RMSSD): %0.2f, hrv (pNN20): %0.2f",
+		log.Printf("hr: %0.2f, hrv (RMSSD): %0.2f, hrv (pNN20): %0.2f, hrv (ln RMSSD 20): %0.2f",
 			hs.Hr(),
 			hs.HrvRmssd(),
-			hs.HrvPnn20())
+			hs.HrvPnn20(),
+			hs.HrvLnRmssd20())
 	}
 
 	return nil
