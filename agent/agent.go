@@ -3,18 +3,23 @@ package main
 import (
 	"encoding/binary"
 	"flag"
+	"gopkg.in/yaml.v2"
 	"heart"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"store"
 	"time"
+	"upload/gcs"
 )
 
 const (
 	heartResetAfter = 2 * time.Second
+	gcsPathPrefix   = "qself"
 )
 
 const (
@@ -27,9 +32,28 @@ const (
 type Context struct {
 	heartStats  *heart.Stats
 	heartStore  *store.Writer
+	uploader    *gcs.Client
 	lastHeartAt time.Time
 	tempStore   *store.Writer
 	lastTemp    uint16
+}
+
+type Config struct {
+	AgentAddr    string `yaml:"AgentAddr"`
+	HttpAddr     string `yaml:"HttpAddr"`
+	ClientId     string `yaml:"ClientId"`
+	ClientSecret string `yaml:"ClientSecret"`
+	Bucket       string `yaml:"Bucket"`
+	Token        string `yaml:"Token"`
+}
+
+func (c *Config) Write(filename string) error {
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(filename, b, os.ModePerm)
 }
 
 func tmpFromRaw(raw uint16) float32 {
@@ -171,10 +195,26 @@ func ListenForSensors(addr string, ctx *Context) error {
 	return nil
 }
 
-func MakeContext(ctx *Context, dir string) error {
+func Upload(up *gcs.Client, service, filename string) error {
+	key := filepath.Join(gcsPathPrefix, service, filename)
+	err := up.Upload(key, filename)
+	if err == nil {
+		return nil
+	}
+
+	// TODO(knorton): This should notify me in some way that data is not pipelining
+	// back propertly.
+	log.Printf("WARNING: upload failed for %s", key)
+	return err
+}
+
+func MakeContext(ctx *Context, up *gcs.Client, dir string) error {
 	hc := store.Config{
 		Dir: filepath.Join(dir, "hrm"),
 		NeedsUpload: func(filename string) store.UploadOp {
+			if err := Upload(up, "hrm", filename); err != nil {
+				return store.UploadKeep
+			}
 			return store.UploadRemove
 		},
 	}
@@ -182,6 +222,9 @@ func MakeContext(ctx *Context, dir string) error {
 	tc := store.Config{
 		Dir: filepath.Join(dir, "tmp"),
 		NeedsUpload: func(filename string) store.UploadOp {
+			if err := Upload(up, "tmp", filename); err != nil {
+				return store.UploadKeep
+			}
 			return store.UploadRemove
 		},
 	}
@@ -200,25 +243,65 @@ func MakeContext(ctx *Context, dir string) error {
 	ctx.heartStats = heart.NewStats(16, 100)
 	ctx.heartStore = hs
 	ctx.tempStore = ts
+	ctx.uploader = up
 	return nil
 }
 
-func main() {
-	flagHttpAddr := flag.String("http", ":8077", "")
-	flagAgntAddr := flag.String("agnt", ":8078", "")
+func ReadConfig(cfg *Config, filename string) error {
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
 
+	return yaml.Unmarshal(b, &cfg)
+}
+
+func Authenticate(filename string, cfg *Config) (*gcs.Client, error) {
+	if err := ReadConfig(cfg, filename); err != nil {
+		return nil, err
+	}
+
+	c := gcs.Config{
+		ClientId:     cfg.ClientId,
+		ClientSecret: cfg.ClientSecret,
+		Bucket:       cfg.Bucket,
+		Token:        cfg.Token,
+	}
+
+	s, err := gcs.Authenticate(&c)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.Token = c.Token
+
+	if err := cfg.Write(filename); err != nil {
+		return nil, err
+	}
+
+	return s, err
+}
+
+func main() {
+	flagCfg := flag.String("config", "config.yaml", "")
 	flag.Parse()
 
+	var cfg Config
+	u, err := Authenticate(*flagCfg, &cfg)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	var ctx Context
-	if err := MakeContext(&ctx, "data"); err != nil {
+	if err := MakeContext(&ctx, u, "data"); err != nil {
 		log.Panic(err)
 	}
 
-	if err := ListenForSensors(*flagAgntAddr, &ctx); err != nil {
+	if err := ListenForSensors(cfg.AgentAddr, &ctx); err != nil {
 		log.Panic(err)
 	}
 
-	if err := http.ListenAndServe(*flagHttpAddr, nil); err != nil {
+	if err := http.ListenAndServe(cfg.HttpAddr, nil); err != nil {
 		log.Panic(err)
 	}
 }
