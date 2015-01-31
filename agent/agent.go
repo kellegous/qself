@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"flag"
 	"gopkg.in/yaml.v2"
 	"heart"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"store"
+	"sync"
 	"time"
 	"upload/gcs"
 )
@@ -36,6 +38,12 @@ type Context struct {
 	lastHeartAt time.Time
 	tempStore   *store.Writer
 	lastTemp    uint16
+
+	// current state as reported via the api.
+	lock sync.RWMutex
+	hrt  float32
+	hrv  float32
+	tmp  float32
 }
 
 type Config struct {
@@ -83,6 +91,11 @@ func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
 			hs.HrvLnRmssd20())
 	}
 
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.hrt = hs.Hr()
+	c.hrv = float32(hs.HrvLnRmssd20())
+
 	return nil
 }
 
@@ -93,9 +106,20 @@ func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
 
 	c.lastTemp = raw
 	c.tempStore.Write(t, raw)
-	log.Printf("tmp: %0.2f", tmpFromRaw(raw))
+	tmp := tmpFromRaw(raw)
+	log.Printf("tmp: %0.2f", tmp)
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.tmp = tmp
 
 	return nil
+}
+
+func (c *Context) CurrentState() (float32, float32, float32) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.hrt, c.hrv, c.tmp
 }
 
 func uintValueFrom(buf []byte) uint16 {
@@ -282,6 +306,25 @@ func Authenticate(filename string, cfg *Config) (*gcs.Client, error) {
 	return s, err
 }
 
+func RunHttp(addr string, ctx *Context) error {
+	http.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
+		var res struct {
+			Hrt float32
+			Hrv float32
+			Tmp float32
+		}
+
+		res.Hrt, res.Hrv, res.Tmp = ctx.CurrentState()
+
+		w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+		if err := json.NewEncoder(w).Encode(&res); err != nil {
+			log.Panic(err)
+		}
+	})
+
+	return http.ListenAndServe(addr, nil)
+}
+
 func main() {
 	flagCfg := flag.String("config", "config.yaml", "")
 	flag.Parse()
@@ -301,7 +344,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	if err := http.ListenAndServe(cfg.HttpAddr, nil); err != nil {
+	if err := RunHttp(cfg.HttpAddr, &ctx); err != nil {
 		log.Panic(err)
 	}
 }
