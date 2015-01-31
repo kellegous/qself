@@ -196,7 +196,7 @@ func ListenForSensors(addr string, ctx *Context) error {
 }
 
 func Upload(up *gcs.Client, service, filename string) error {
-	key := filepath.Join(gcsPathPrefix, service, filename)
+	key := filepath.Join(gcsPathPrefix, service, filepath.Base(filename))
 	err := up.Upload(key, filename)
 	if err == nil {
 		return nil
@@ -229,14 +229,14 @@ func MakeContext(ctx *Context, up *gcs.Client, dir string) error {
 		},
 	}
 
-	hs, err := store.Start(&hc)
+	hs, err := store.Start(&hc, store.UploadDaily)
 	if err != nil {
 		return err
 	}
 
-	ts, err := store.Start(&tc)
+	ts, err := store.Start(&tc, store.UploadDaily)
 	if err != nil {
-		// TODO(knorton): shutdown hs
+		hs.Stop()
 		return err
 	}
 

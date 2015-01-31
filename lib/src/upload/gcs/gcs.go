@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"github.com/kellegous/coauth"
 	"google.golang.org/api/storage/v1"
+	"io"
+	"log"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 )
 
 type Config struct {
@@ -18,10 +23,39 @@ type Config struct {
 
 type Client struct {
 	s *storage.Service
+	b string
+}
+
+type readerWithType struct {
+	io.Reader
+	Type string
+}
+
+func (r *readerWithType) ContentType() string {
+	return r.Type
 }
 
 func (c *Client) Upload(key, filename string) error {
-	return nil
+	log.Printf("%s => %s", filename, key)
+	r, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	_, err = c.s.Objects.Insert(c.b, &storage.Object{
+		Name: key,
+		Acl: []*storage.ObjectAccessControl{
+			&storage.ObjectAccessControl{
+				Entity: "allUsers",
+				Role:   "READER",
+			},
+		},
+	}).Media(&readerWithType{
+		Reader: r,
+		Type:   mime.TypeByExtension(filepath.Ext(filename)),
+	}).Do()
+	return err
 }
 
 func openTransport(cfg *Config) (*coauth.Client, error) {
@@ -73,5 +107,5 @@ func Authenticate(cfg *Config) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{s}, nil
+	return &Client{s: s, b: cfg.Bucket}, nil
 }

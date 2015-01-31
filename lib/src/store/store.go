@@ -24,6 +24,14 @@ const (
 	UploadKeep
 )
 
+type UploadFreq string
+
+const (
+	UploadMinutely UploadFreq = "200601021504"
+	UploadHourly   UploadFreq = "2006010215"
+	UploadDaily    UploadFreq = "20060102"
+)
+
 type Config struct {
 	Dir         string
 	NeedsUpload func(filename string) UploadOp
@@ -36,6 +44,7 @@ type Writer struct {
 	w   io.WriteCloser
 	c   io.Closer
 	s   string
+	fr  UploadFreq
 
 	ch chan func() error
 }
@@ -55,6 +64,7 @@ func (w *Writer) Write(t time.Time, rr uint16) {
 }
 
 func upload(cfg *Config, filename string) {
+	log.Printf("need to upload %s", filename)
 	if cfg.NeedsUpload == nil {
 		return
 	}
@@ -71,7 +81,7 @@ func filenameFor(cfg *Config, ts string) string {
 }
 
 func (w *Writer) openFor(t time.Time) error {
-	ts := stampFor(t)
+	ts := stampFor(t, w.fr)
 
 	// is this time already open?
 	if ts == w.s {
@@ -82,7 +92,9 @@ func (w *Writer) openFor(t time.Time) error {
 		return err
 	}
 
-	go upload(w.cfg, filenameFor(w.cfg, w.s))
+	if w.s != "" {
+		go upload(w.cfg, filenameFor(w.cfg, w.s))
+	}
 
 	f, err := os.OpenFile(
 		filenameFor(w.cfg, ts),
@@ -120,7 +132,11 @@ func (w *Writer) close() error {
 	return nil
 }
 
-func Start(cfg *Config) (*Writer, error) {
+func (w *Writer) Stop() {
+	close(w.ch)
+}
+
+func Start(cfg *Config, fr UploadFreq) (*Writer, error) {
 	// ensure we have a directory
 	if _, err := os.Stat(cfg.Dir); err != nil {
 		if err := os.MkdirAll(cfg.Dir, 0777); err != nil {
@@ -131,6 +147,7 @@ func Start(cfg *Config) (*Writer, error) {
 	w := &Writer{
 		cfg: cfg,
 		ch:  make(chan func() error, 10),
+		fr:  fr,
 	}
 
 	if err := w.openFor(time.Now()); err != nil {
@@ -138,8 +155,7 @@ func Start(cfg *Config) (*Writer, error) {
 	}
 
 	go func() {
-		for {
-			f := <-w.ch
+		for f := range w.ch {
 			if err := f(); err != nil {
 				log.Println(err)
 			}
@@ -150,6 +166,6 @@ func Start(cfg *Config) (*Writer, error) {
 	return w, nil
 }
 
-func stampFor(t time.Time) string {
-	return t.Format("20060102")
+func stampFor(t time.Time, fr UploadFreq) string {
+	return t.Format(string(fr))
 }
