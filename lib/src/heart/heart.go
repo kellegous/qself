@@ -8,6 +8,10 @@ type Stats struct {
 	idx int
 }
 
+func (r *Stats) CanReport() bool {
+	return len(r.rrs) >= r.min
+}
+
 func (r *Stats) AddInterval(i uint16) bool {
 	n, c := len(r.rrs), cap(r.rrs)
 	if n < c {

@@ -32,18 +32,27 @@ const (
 )
 
 type Context struct {
+	uploader    *gcs.Client
+	lock        sync.RWMutex
 	heartStats  *heart.Stats
 	heartStore  *store.Writer
-	uploader    *gcs.Client
 	lastHeartAt time.Time
 	tempStore   *store.Writer
 	lastTemp    uint16
+	lastTempAt  time.Time
+}
 
-	// current state as reported via the api.
-	lock sync.RWMutex
-	hrt  float32
-	hrv  float32
-	tmp  float32
+type Stats struct {
+	Hrt struct {
+		Active      bool
+		Rate        float32
+		Variability float32
+	}
+
+	Tmp struct {
+		Active bool
+		Temp   float32
+	}
 }
 
 type Config struct {
@@ -75,6 +84,9 @@ func rawFromTmp(tmp float32) uint16 {
 func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
 	c.heartStore.Write(t, rr)
 
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	hs := c.heartStats
 
 	if t.Sub(c.lastHeartAt) > heartResetAfter {
@@ -83,43 +95,46 @@ func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
 	}
 	c.lastHeartAt = t
 
-	if hs.AddInterval(rr) {
-		log.Printf("hr: %0.2f, hrv (RMSSD): %0.2f, hrv (pNN20): %0.2f, hrv (ln RMSSD 20): %0.2f",
-			hs.Hr(),
-			hs.HrvRmssd(),
-			hs.HrvPnn20(),
-			hs.HrvLnRmssd20())
-	}
-
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.hrt = hs.Hr()
-	c.hrv = float32(hs.HrvLnRmssd20())
-
+	hs.AddInterval(rr)
 	return nil
 }
 
 func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
+
 	if raw == c.lastTemp {
 		return nil
 	}
-
-	c.lastTemp = raw
 	c.tempStore.Write(t, raw)
-	tmp := tmpFromRaw(raw)
-	log.Printf("tmp: %0.2f", tmp)
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.tmp = tmp
+
+	c.lastTemp = raw
+	c.lastTempAt = t
 
 	return nil
 }
 
-func (c *Context) CurrentState() (float32, float32, float32) {
+func (c *Context) StatsFor(s *Stats) {
+	t := time.Now()
+
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.hrt, c.hrv, c.tmp
+
+	hs := c.heartStats
+
+	if hs.CanReport() && t.Sub(c.lastHeartAt) < 2*time.Second {
+		s.Hrt.Active = true
+		s.Hrt.Rate = hs.Hr()
+		s.Hrt.Variability = float32(hs.HrvLnRmssd20())
+	} else {
+		s.Hrt.Active = false
+		s.Hrt.Rate = 0.0
+		s.Hrt.Variability = 0.0
+	}
+
+	s.Tmp.Active = t.Sub(c.lastTempAt) < 2*time.Second
+	s.Tmp.Temp = tmpFromRaw(c.lastTemp)
 }
 
 func uintValueFrom(buf []byte) uint16 {
@@ -308,13 +323,8 @@ func Authenticate(filename string, cfg *Config) (*gcs.Client, error) {
 
 func RunHttp(addr string, ctx *Context) error {
 	http.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
-		var res struct {
-			Hrt float32
-			Hrv float32
-			Tmp float32
-		}
-
-		res.Hrt, res.Hrv, res.Tmp = ctx.CurrentState()
+		var res Stats
+		ctx.StatsFor(&res)
 
 		w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 		if err := json.NewEncoder(w).Encode(&res); err != nil {

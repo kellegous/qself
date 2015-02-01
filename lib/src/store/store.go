@@ -80,6 +80,47 @@ func filenameFor(cfg *Config, ts string) string {
 	return filepath.Join(cfg.Dir, fmt.Sprintf("%s.gz", ts))
 }
 
+func validateAndOpen(filename string) (*os.File, error) {
+	// check to see if the target file exists
+	if _, err := os.Stat(filename); err != nil {
+		return os.Create(filename)
+	}
+
+	// if so, move that file to tmp
+	tmp := filepath.Join(os.TempDir(), filepath.Base(filename))
+	if err := os.Rename(filename, tmp); err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmp)
+
+	// open the file from tmp
+	r, err := os.Open(tmp)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	// now write back to the target file
+	w, err := os.Create(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	// we're going to write things back 1 frame (10 bytes) as a time to
+	// make sure we have no partial records.
+	var fr [10]byte
+	for {
+		_, err := io.ReadFull(r, fr[:])
+		if err == io.ErrUnexpectedEOF || err == io.EOF {
+			return w, nil
+		}
+
+		if _, err := w.Write(fr[:]); err != nil {
+			return nil, err
+		}
+	}
+}
+
 func (w *Writer) openFor(t time.Time) error {
 	ts := stampFor(t, w.fr)
 
@@ -96,10 +137,7 @@ func (w *Writer) openFor(t time.Time) error {
 		go upload(w.cfg, filenameFor(w.cfg, w.s))
 	}
 
-	f, err := os.OpenFile(
-		filenameFor(w.cfg, ts),
-		os.O_CREATE|os.O_APPEND|os.O_RDWR,
-		0666)
+	f, err := validateAndOpen(filenameFor(w.cfg, ts))
 	if err != nil {
 		return err
 	}
