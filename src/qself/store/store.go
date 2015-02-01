@@ -80,6 +80,30 @@ func filenameFor(cfg *Config, ts string) string {
 	return filepath.Join(cfg.Dir, fmt.Sprintf("%s.gz", ts))
 }
 
+func move(dst, src string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+
+	r, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	w, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	if _, err = io.Copy(w, r); err != nil {
+		return err
+	}
+
+	return os.Remove(src)
+}
+
 func validateAndOpen(filename string) (*os.File, error) {
 	// check to see if the target file exists
 	if _, err := os.Stat(filename); err != nil {
@@ -88,7 +112,7 @@ func validateAndOpen(filename string) (*os.File, error) {
 
 	// if so, move that file to tmp
 	tmp := filepath.Join(os.TempDir(), filepath.Base(filename))
-	if err := os.Rename(filename, tmp); err != nil {
+	if err := move(filename, tmp); err != nil {
 		return nil, err
 	}
 	defer os.Remove(tmp)

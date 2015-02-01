@@ -1,9 +1,6 @@
 require 'yaml'
 
-PATHS = [
-  'lib',
-  'dep',
-]
+PATHS = [ '.', 'dep' ]
 
 CONFIG = YAML.load_file 'config.yaml'
 
@@ -26,12 +23,12 @@ task :clean do
   CLEAN.each { |f| rm_r(f) rescue nil }
 end
 
-file! 'bin/agent' => FileList['agent/*', 'lib/**/*', 'dep/**/*'] do
-  sh 'go', 'build', '-o', 'bin/agent', 'agent/agent.go'
+file! 'bin/qagent' => FileList['src/**/*', 'dep/**/*'] do
+  sh 'go', 'build', '-o', 'bin/qagent', 'src/qagent/agent.go'
 end
 
-file! 'bin/sensor' => FileList['sensor/*', 'lib/**/*', 'dep/**/*'] do
-  sh 'go', 'build', '-o', 'bin/sensor', 'sensor/host.go'
+file! 'bin/qsensor' => FileList['src/qsensor/*', 'dep/**/*'] do
+  sh 'go', 'build', '-o', 'bin/qsensor', 'src/qsensor/host.go'
 end
 
 task :subl do
@@ -48,7 +45,7 @@ task :deploy do
   }
 end
 
-task :default => ['bin/agent', 'bin/sensor']
+task :default => ['bin/qagent', 'bin/qsensor']
 
 task :debug do
   puts CONFIG.inspect

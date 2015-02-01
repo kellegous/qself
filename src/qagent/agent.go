@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"gopkg.in/yaml.v2"
-	"heart"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,10 +12,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"store"
+	"qself/heart"
+	"qself/store"
+	"qself/upload/gcs"
 	"sync"
 	"time"
-	"upload/gcs"
 )
 
 const (
