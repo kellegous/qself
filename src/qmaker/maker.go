@@ -71,6 +71,20 @@ func copy(dst, src string) error {
 	return err
 }
 
+func scp(src, dst string) error {
+	cmd := exec.Command("scp", src, dst)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func runOverSsh(host, sh string) error {
+	cmd := exec.Command("ssh", host, sh)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func doBuild(args []string) {
 	f := flag.NewFlagSet("build", flag.ContinueOnError)
 	f.Parse(args)
@@ -134,6 +148,8 @@ func doDeploy(args []string) {
 		os.Exit(1)
 	}
 
+	host := f.Arg(0)
+
 	dst, err := ioutil.TempDir("", "")
 	if err != nil {
 		log.Panic(err)
@@ -169,7 +185,7 @@ func doDeploy(args []string) {
 		os.Exit(1)
 	}
 
-	if err := goBuild("qinstall",
+	if err := goBuild(filepath.Join(dst, "qinstall"),
 		[]string{
 			filepath.Join(dst, "install.go"),
 			filepath.Join(dst, "data.go"),
@@ -177,6 +193,18 @@ func doDeploy(args []string) {
 		*flagOs,
 		*flagArch,
 		*flagArm); err != nil {
+		os.Exit(1)
+	}
+
+	if err := scp(
+		filepath.Join(dst, "qinstall"),
+		fmt.Sprintf("%s:./", host)); err != nil {
+		os.Exit(1)
+	}
+
+	defer runOverSsh(host, "rm -f qinstall")
+
+	if err := runOverSsh(host, "./qinstall"); err != nil {
 		os.Exit(1)
 	}
 }

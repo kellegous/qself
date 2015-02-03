@@ -1,19 +1,47 @@
 package main
 
 import (
+	"bytes"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"os/user"
+	"strings"
 )
 
+func getUid() (string, error) {
+	cmd := exec.Command("id", "-u")
+
+	r, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		return "", err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(buf.String()), nil
+}
+
 func beRoot() {
-	u, err := user.Current()
+	u, err := getUid()
 	if err != nil {
 		log.Panic(err)
 	}
 
-	if u.Uid == "0" {
+	if u == "0" {
 		return
 	}
 
@@ -32,9 +60,12 @@ func beRoot() {
 func main() {
 	beRoot()
 
-	u, err := user.Current()
+	b, err := Asset("qagent")
 	if err != nil {
 		log.Panic(err)
 	}
-	log.Printf("%s\n", u.Username)
+
+	if err := ioutil.WriteFile("/usr/local/qagent", b, os.ModePerm); err != nil {
+		log.Panic(err)
+	}
 }
