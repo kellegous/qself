@@ -57,33 +57,46 @@ func beRoot() {
 	os.Exit(0)
 }
 
-func systemctl(svc, msg string) error {
-	cmd := exec.Command("systemctl", msg, svc)
+func systemctl(args ...string) error {
+	cmd := exec.Command("systemctl", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
+func writeAsset(dst, name string) error {
+	b, err := Asset(name)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(dst, b, os.ModePerm)
+}
+
 func main() {
 	beRoot()
 
-	if err := systemctl("qagent", "stop"); err != nil {
+	if err := systemctl("stop", "qagent"); err != nil {
 		log.Panic(err)
 	}
 
-	b, err := Asset("qagent")
-	if err != nil {
+	if err := writeAsset(
+		"/etc/systemd/system/qagent.service",
+		"qagent.service"); err != nil {
 		log.Panic(err)
 	}
 
-	if err := ioutil.WriteFile(
+	if err := writeAsset(
 		"/usr/local/bin/qagent",
-		b,
-		os.ModePerm); err != nil {
+		"qagent"); err != nil {
 		log.Panic(err)
 	}
 
-	if err := systemctl("qagent", "start"); err != nil {
+	if err := systemctl("daemon-reload"); err != nil {
+		log.Panic(err)
+	}
+
+	if err := systemctl("start", "qagent"); err != nil {
 		log.Panic(err)
 	}
 }

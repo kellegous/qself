@@ -169,14 +169,18 @@ func doDeploy(args []string) {
 		os.Exit(1)
 	}
 
+	if err := copy(
+		filepath.Join(dst, "qagent.service"),
+		"src/qmaker/qagent.service"); err != nil {
+		os.Exit(1)
+	}
+
 	if err := binData(
 		filepath.Join(dst, "data.go"),
 		dst,
 		dst); err != nil {
 		os.Exit(1)
 	}
-
-	copy("data.go", filepath.Join(dst, "data.go"))
 
 	if err := copy(
 		filepath.Join(dst, "install.go"),

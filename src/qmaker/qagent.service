@@ -1,0 +1,8 @@
+[Unit]
+Description=Qagent
+
+[Service]
+ExecStart=/usr/local/bin/qagent --config=/etc/qagent.yaml
+
+[Install]
+WantedBy=multi-user.target
