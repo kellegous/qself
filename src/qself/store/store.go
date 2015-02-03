@@ -112,7 +112,7 @@ func validateAndOpen(filename string) (*os.File, error) {
 
 	// if so, move that file to tmp
 	tmp := filepath.Join(os.TempDir(), filepath.Base(filename))
-	if err := move(filename, tmp); err != nil {
+	if err := move(tmp, filename); err != nil {
 		return nil, err
 	}
 	defer os.Remove(tmp)

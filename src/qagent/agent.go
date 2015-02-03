@@ -58,6 +58,7 @@ type Stats struct {
 type Config struct {
 	AgentAddr    string `yaml:"AgentAddr"`
 	HttpAddr     string `yaml:"HttpAddr"`
+	DataDir      string `yaml:"DataDir"`
 	ClientId     string `yaml:"ClientId"`
 	ClientSecret string `yaml:"ClientSecret"`
 	Bucket       string `yaml:"Bucket"`
@@ -346,7 +347,7 @@ func main() {
 	}
 
 	var ctx Context
-	if err := MakeContext(&ctx, u, "data"); err != nil {
+	if err := MakeContext(&ctx, u, cfg.DataDir); err != nil {
 		log.Panic(err)
 	}
 

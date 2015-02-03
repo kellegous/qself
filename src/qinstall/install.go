@@ -57,15 +57,33 @@ func beRoot() {
 	os.Exit(0)
 }
 
+func systemctl(svc, msg string) error {
+	cmd := exec.Command("systemctl", msg, svc)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func main() {
 	beRoot()
+
+	if err := systemctl("qagent", "stop"); err != nil {
+		log.Panic(err)
+	}
 
 	b, err := Asset("qagent")
 	if err != nil {
 		log.Panic(err)
 	}
 
-	if err := ioutil.WriteFile("/usr/local/qagent", b, os.ModePerm); err != nil {
+	if err := ioutil.WriteFile(
+		"/usr/local/bin/qagent",
+		b,
+		os.ModePerm); err != nil {
+		log.Panic(err)
+	}
+
+	if err := systemctl("qagent", "start"); err != nil {
 		log.Panic(err)
 	}
 }
