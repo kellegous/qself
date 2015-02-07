@@ -83,35 +83,50 @@ func rawFromTmp(tmp float32) uint16 {
 }
 
 func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
+	if !updateHrm(c, t, rr) {
+		return nil
+	}
+
 	c.heartStore.Write(t, rr)
 
+	return nil
+}
+
+func updateHrm(c *Context, t time.Time, rr uint16) bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	hs := c.heartStats
 
 	if t.Sub(c.lastHeartAt) > heartResetAfter {
-		log.Println("resetting heart stats")
 		hs.Reset()
 	}
-	c.lastHeartAt = t
 
+	c.lastHeartAt = t
 	hs.AddInterval(rr)
-	return nil
+	return true
+}
+
+func updateTmp(c *Context, t time.Time, raw uint16) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.lastTempAt = t
+	if raw == c.lastTemp {
+		return false
+	}
+
+	c.lastTemp = raw
+	return true
 }
 
 func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
 
-	if raw == c.lastTemp {
+	if !updateTmp(c, t, raw) {
 		return nil
 	}
+
 	c.tempStore.Write(t, raw)
-
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.lastTemp = raw
-	c.lastTempAt = t
 
 	return nil
 }
