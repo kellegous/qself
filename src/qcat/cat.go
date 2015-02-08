@@ -37,8 +37,17 @@ func findDevice(name string) string {
 	return opts[0]
 }
 
+type record struct {
+	t time.Time
+	s string
+}
+
+func (r *record) String() string {
+	return fmt.Sprintf("%s: %s", r.t.Format(time.RFC3339), r.s)
+}
+
 type logger struct {
-	buf []string
+	buf []*record
 	idx int
 	lck sync.RWMutex
 }
@@ -50,17 +59,24 @@ func (l *logger) GetLogs() []string {
 	n, c := len(l.buf), cap(l.buf)
 	r := make([]string, n)
 	for i := 0; i < n; i++ {
-		r[i] = l.buf[(l.idx+i)%c]
+		r[i] = l.buf[(l.idx+i)%c].String()
 	}
 	return r
 }
 
 func (l *logger) append(s string) {
-	log.Println(s)
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
+	r := &record{
+		t: time.Now(),
+		s: s,
+	}
+
 	if len(l.buf) < cap(l.buf) {
-		l.buf = append(l.buf, s)
+		l.buf = append(l.buf, r)
 	} else {
-		l.buf[l.idx] = s
+		l.buf[l.idx] = r
 		l.idx = (l.idx + 1) % cap(l.buf)
 	}
 }
@@ -104,7 +120,7 @@ func (l *logger) connect(cfg *serial.Config) error {
 
 func startLogger(cfg *serial.Config, n int) (*logger, error) {
 	l := logger{
-		buf: make([]string, 0, n),
+		buf: make([]*record, 0, n),
 	}
 
 	go func() {
@@ -140,7 +156,7 @@ func main() {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, strings.Join(l.GetLogs(), ","))
+		fmt.Fprintln(w, strings.Join(l.GetLogs(), "\n"))
 	})
 
 	if err := http.ListenAndServe(*flagAddr, nil); err != nil {
