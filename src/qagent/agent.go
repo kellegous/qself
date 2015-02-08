@@ -198,6 +198,7 @@ func ServeBasic(con net.Conn, ctx *Context) {
 
 	var buf [3]byte
 	for {
+		con.SetDeadline(time.Now().Add(1 * time.Minute))
 		if _, err := io.ReadFull(con, buf[:]); err != nil {
 			log.Println(err)
 			return
