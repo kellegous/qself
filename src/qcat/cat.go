@@ -56,6 +56,7 @@ func (l *logger) GetLogs() []string {
 }
 
 func (l *logger) append(s string) {
+	log.Println(s)
 	if len(l.buf) < cap(l.buf) {
 		l.buf = append(l.buf, s)
 	} else {
