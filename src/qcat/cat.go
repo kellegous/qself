@@ -16,7 +16,7 @@ import (
 )
 
 func findDevice(name string) string {
-	if name == "" {
+	if name != "" {
 		return fmt.Sprintf("/dev/%s", name)
 	}
 
