@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="MetricHistoryGraph">
+        <attr name="barColor" format="color"/>
+        <attr name="numberOfSamples" format="integer"/>
+    </declare-styleable>
+
+    <declare-styleable name="MetricHistoryView">
+        <attr name="label" format="string"/>
+    </declare-styleable>
+</resources>

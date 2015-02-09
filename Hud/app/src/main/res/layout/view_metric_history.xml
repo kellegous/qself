@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal">
@@ -20,21 +21,25 @@
             android:paddingRight="16dp"/>
 
         <TextView
+            android:id="@+id/metric_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="HRV"
             android:textColor="#999"
             android:textSize="24sp"
             android:paddingLeft="24dp"
             android:paddingRight="16dp"
             android:paddingBottom="32dp"
-            android:layout_marginTop="-26dp"/>
+            android:layout_marginTop="-26dp"
+            android:textAllCaps="true"/>
     </LinearLayout>
 
-    <TextView
+    <kellegous.hud.MetricHistoryGraph
+        android:id="@+id/metric_graph"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:background="#f6f6f6"/>
+        android:paddingTop="32dp"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        app:barColor="#eee"/>
 
 </LinearLayout>
