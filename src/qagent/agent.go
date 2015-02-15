@@ -40,6 +40,7 @@ type Context struct {
 	tempStore   *store.Writer
 	lastTemp    uint16
 	lastTempAt  time.Time
+	conns       Conns
 }
 
 type Stats struct {
@@ -193,8 +194,13 @@ func ServeAdvanced(con net.Conn, ctx *Context) {
 	}
 }
 
-func ServeBasic(con net.Conn, ctx *Context) {
-	defer con.Close()
+func ServeBasic(id int, con net.Conn, ctx *Context) {
+	defer func() {
+		ctx.conns.DidDisconnect(id)
+		con.Close()
+	}()
+
+	ctx.conns.DidConnect(id)
 
 	var buf [3]byte
 	for {
@@ -237,6 +243,7 @@ func ListenForSensors(addr string, ctx *Context) error {
 	}
 
 	go func() {
+		id := 1
 		for {
 			con, err := l.Accept()
 			if err != nil {
@@ -244,7 +251,8 @@ func ListenForSensors(addr string, ctx *Context) error {
 				continue
 			}
 
-			go ServeBasic(con, ctx)
+			go ServeBasic(id, con, ctx)
+			id++
 		}
 	}()
 
@@ -338,13 +346,24 @@ func Authenticate(filename string, cfg *Config) (*gcs.Client, error) {
 	return s, err
 }
 
+func writeJson(w http.ResponseWriter, data interface{}) error {
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	return json.NewEncoder(w).Encode(data)
+}
+
 func RunHttp(addr string, ctx *Context) error {
 	http.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		var res Stats
 		ctx.StatsFor(&res)
 
-		w.Header().Set("Content-Type", "application/json;charset=UTF-8")
-		if err := json.NewEncoder(w).Encode(&res); err != nil {
+		if err := writeJson(w, &res); err != nil {
+			log.Panic(err)
+		}
+	})
+
+	http.HandleFunc("/api/conns", func(w http.ResponseWriter, r *http.Request) {
+		res := ctx.conns.Conns()
+		if err := writeJson(w, res); err != nil {
 			log.Panic(err)
 		}
 	})

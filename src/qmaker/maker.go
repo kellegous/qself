@@ -90,7 +90,7 @@ func doBuild(args []string) {
 	f.Parse(args)
 
 	if err := goBuild("bin/qagent",
-		[]string{"src/qagent/agent.go"},
+		[]string{"src/qagent/agent.go", "src/qagent/conns.go"},
 		[]string{".", "dep"},
 		"", "", 0); err != nil {
 		os.Exit(1)
@@ -161,7 +161,7 @@ func doDeploy(args []string) {
 	}
 
 	if err := goBuild(filepath.Join(dst, "qagent"),
-		[]string{"src/qagent/agent.go"},
+		[]string{"src/qagent/agent.go", "src/qagent/conns.go"},
 		[]string{".", "dep"},
 		*flagOs,
 		*flagArch,

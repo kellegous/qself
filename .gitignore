@@ -1,6 +1,6 @@
 read
 dep
-lib/pkg
 config.yaml
 data
 bin
+pkg

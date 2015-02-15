@@ -3,7 +3,7 @@ BINS=bin/qagent bin/qsensor
 ALL: $(BINS)
 
 bin/qagent: $(wildcard src/**/*)
-	GOPATH=`pwd`:`pwd`/dep go build -o $@ src/qagent/agent.go
+	GOPATH=`pwd`:`pwd`/dep go build -o $@ src/qagent/agent.go src/qagent/conns.go
 
 bin/qsensor: $(wildcard src/**/*)
 	GOPATH=`pwd`:`pwd`/dep go build -o $@ src/qsensor/host.go
