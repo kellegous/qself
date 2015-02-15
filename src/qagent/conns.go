@@ -67,6 +67,9 @@ func (c *Conns) Conns() []JsonData {
 		m["connected"] = ci.DisconnectedAt.IsZero()
 		if !ci.DisconnectedAt.IsZero() {
 			m["disconnected_at"] = ci.DisconnectedAt
+			m["duration_secs"] = ci.DisconnectedAt.Sub(ci.ConnectedAt).Seconds()
+		} else {
+			m["duration_secs"] = time.Now().Sub(ci.ConnectedAt).Seconds()
 		}
 
 		r = append(r, JsonData(m))
