@@ -17,7 +17,6 @@ const uint8_t CMD_HRT = 0x00;
 const uint8_t CMD_TMP = 0x01;
 
 const int HRPIN = 9;
-const int LDPIN = 13;
 const int TMPIN = 0;
 
 unsigned long last_tmp_at;
@@ -44,7 +43,6 @@ void connectAgent() {
 
 void setup() {
   // Serial.begin(9600);
-  pinMode(LDPIN, OUTPUT);
   
   Kellegous_Agent_Config* cfg = new Kellegous_Agent_Config;
   getConfig(cfg);
@@ -69,7 +67,6 @@ void loop() {
 
   unsigned int nn;
   if (hr.Update(&nn)) {
-    // Serial.println(nn);
     agent->send(CMD_HRT, nn);
   }
   
