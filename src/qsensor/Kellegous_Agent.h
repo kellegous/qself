@@ -33,8 +33,8 @@ class Kellegous_Agent {
  public:
   Kellegous_Agent(Kellegous_Agent_Config* cfg);
   ~Kellegous_Agent();
-  bool waitForConnect();
   bool init();
+  bool connected();
   bool send(uint8_t cmd, unsigned int val);
  private:
   bool connect();

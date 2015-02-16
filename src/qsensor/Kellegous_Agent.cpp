@@ -1,7 +1,5 @@
 #include "Kellegous_Agent.h"
 
-void(* resetDevice) (void) = 0;
-
 Kellegous_Agent::Kellegous_Agent(Kellegous_Agent_Config* cfg) : cfg_(cfg) {
   cc3000_ = new Adafruit_CC3000(
     cfg_->cs_pin,
@@ -18,27 +16,26 @@ Kellegous_Agent::~Kellegous_Agent() {
 }
 
 bool Kellegous_Agent::init() {
-  return cc3000_->begin();
+  if (!cc3000_->begin()) {
+    return 0;
+  }
+  
+  return connect();
 }
 
 bool Kellegous_Agent::connect() {
-  if (!cc3000_->checkConnected()) {
-    
-    // we need to connect to AP
-    if (!cc3000_->connectToAP(cfg_->ssid, cfg_->ssid_key, cfg_->ssid_secmode)) {
-      return 0;
-    }
-
-    // wait until we have an ip address.
-    while (!cc3000_->checkDHCP()) {
-      delay(200);
-    }
+  // we need to connect to AP
+  if (!cc3000_->connectToAP(cfg_->ssid, cfg_->ssid_key, cfg_->ssid_secmode)) {
+    return 0;
   }
 
-  if (!client_.connected()) {
-    if (!client_.connect(cfg_->host, cfg_->port)) {
-      return 0;
-    }
+  // wait until we have an ip address.
+  while (!cc3000_->checkDHCP()) {
+    delay(200);
+  }
+
+  if (!client_.connect(cfg_->host, cfg_->port)) {
+    return 0;
   }
 
   return client_.connected();
@@ -67,25 +64,7 @@ int Kellegous_Agent::delayFor(int c) {
   return 10000;
 }
 
-bool Kellegous_Agent::waitForConnect() {
-  if (cc3000_->checkConnected() && client_.connected()) {
-    return 0;
-  }
-  
-  client_.close();
-  
-  int c = 0;
-  for (;;) {
-    Serial.print("connect #"); Serial.println(c);
-    if (connect()) {
-      return 1;
-    }
-    
-    delay(delayFor(c));
-    c++;
-    
-    if (c > 5) {
-      resetDevice();
-    }
-  }
+bool Kellegous_Agent::connected() {
+  return cc3000_->checkConnected() && client_.connected();
 }
+

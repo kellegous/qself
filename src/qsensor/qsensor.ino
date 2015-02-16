@@ -23,6 +23,8 @@ unsigned long last_tmp_at;
 Kellegous_HrNN hr(HRPIN);
 Kellegous_Agent* agent;
 
+void(* resetDevice) (void) = 0;
+
 void getConfig(Kellegous_Agent_Config* cfg) {
   cfg->cs_pin = 10;
   cfg->vbat_pin = 5;
@@ -35,12 +37,6 @@ void getConfig(Kellegous_Agent_Config* cfg) {
   cfg->port = PORT;
 }
 
-void connectAgent() {
-  if (agent->waitForConnect()) {
-    agent->send(CMD_RST, 0xffff);
-  }
-}
-
 void setup() {
   Serial.begin(9600);
   
@@ -48,12 +44,13 @@ void setup() {
   getConfig(cfg);
   
   agent = new Kellegous_Agent(cfg);
-  if (!agent->init()) {
-    agent = NULL;
+  if (agent->init()) {
+    agent->send(CMD_RST, 0xffff);
+  } else {
+    delay(1000);
+    resetDevice();
   }
   
-  connectAgent();
- 
   last_tmp_at = millis();  
 }
 
@@ -63,8 +60,13 @@ float compute_tmp(float v) {
 }
 
 void loop() {
-  connectAgent();
-
+  // NOTE: the cc3000 is pretty shitty. Once it starts disconnecting
+  // we're pretty much fucked, so just reset the device so we lose 30
+  // seconds of data instead of 12 hours.
+  if (!agent->connected()) {
+    resetDevice();
+  }
+  
   unsigned int nn;
   if (hr.Update(&nn)) {
     agent->send(CMD_HRT, nn);
