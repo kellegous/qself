@@ -9,8 +9,8 @@
 #define HOST "turtle.kellego.us"
 #define PORT 8078;
 // TODO(knorton): fix this.
-#define SSID "x";
-#define SKEY "x";
+#define SSID "";
+#define SKEY "";
 
 const uint8_t CMD_RST = 0xff;
 const uint8_t CMD_HRT = 0x00;

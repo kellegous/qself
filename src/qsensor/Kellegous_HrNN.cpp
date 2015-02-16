@@ -1,9 +1,9 @@
 #include "Kellegous_HrNN.h"
 
 Kellegous_HrNN::Kellegous_HrNN(unsigned int pin)
-    : pin_(pin),
-      last_val_(0),
-      last_pulse_at_(0) {
+    : last_pulse_at_(0),
+      pin_(pin),
+      last_val_(0) {
 }
 
 bool Kellegous_HrNN::Update(unsigned int* sample) {

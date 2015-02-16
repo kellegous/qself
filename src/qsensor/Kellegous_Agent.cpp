@@ -1,5 +1,7 @@
 #include "Kellegous_Agent.h"
 
+void(* resetDevice) (void) = 0;
+
 Kellegous_Agent::Kellegous_Agent(Kellegous_Agent_Config* cfg) : cfg_(cfg) {
   cc3000_ = new Adafruit_CC3000(
     cfg_->cs_pin,
@@ -27,11 +29,12 @@ bool Kellegous_Agent::connect() {
       return 0;
     }
     
-    // wait until we have an ip address.
-    while (!cc3000_->checkDHCP()) {
-      delay(200);
-    }    
   }
+
+  // wait until we have an ip address.
+  while (!cc3000_->checkDHCP()) {
+    delay(200);
+  }    
 
   if (!client_.connected()) {
     if (!client_.connect(cfg_->host, cfg_->port)) {
@@ -80,5 +83,9 @@ bool Kellegous_Agent::waitForConnect() {
     
     delay(delayFor(c));
     c++;
+    
+    if (c > 100) {
+      resetDevice();
+    }
   }
 }
