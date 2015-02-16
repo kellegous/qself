@@ -59,8 +59,11 @@ func (c *Conns) Conns() []JsonData {
 	c.lck.RLock()
 	defer c.lck.RUnlock()
 
-	r := make([]JsonData, 0, len(c.cons))
-	for _, ci := range c.cons {
+	n, l := len(c.cons), cap(c.cons)
+
+	r := make([]JsonData, n)
+	for i := 0; i < n; i++ {
+		ci := c.cons[(c.idx+i)%l]
 		m := map[string]interface{}{}
 		m["id"] = ci.Id
 		m["connected_at"] = ci.ConnectedAt
@@ -72,7 +75,7 @@ func (c *Conns) Conns() []JsonData {
 			m["duration_secs"] = time.Now().Sub(ci.ConnectedAt).Seconds()
 		}
 
-		r = append(r, JsonData(m))
+		r[n-1-i] = JsonData(m)
 	}
 
 	return r

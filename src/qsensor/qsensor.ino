@@ -42,7 +42,7 @@ void connectAgent() {
 }
 
 void setup() {
-  // Serial.begin(9600);
+  Serial.begin(9600);
   
   Kellegous_Agent_Config* cfg = new Kellegous_Agent_Config;
   getConfig(cfg);

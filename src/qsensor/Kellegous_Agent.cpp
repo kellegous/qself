@@ -28,13 +28,12 @@ bool Kellegous_Agent::connect() {
     if (!cc3000_->connectToAP(cfg_->ssid, cfg_->ssid_key, cfg_->ssid_secmode)) {
       return 0;
     }
-    
-  }
 
-  // wait until we have an ip address.
-  while (!cc3000_->checkDHCP()) {
-    delay(200);
-  }    
+    // wait until we have an ip address.
+    while (!cc3000_->checkDHCP()) {
+      delay(200);
+    }
+  }
 
   if (!client_.connected()) {
     if (!client_.connect(cfg_->host, cfg_->port)) {
@@ -77,6 +76,7 @@ bool Kellegous_Agent::waitForConnect() {
   
   int c = 0;
   for (;;) {
+    Serial.print("connect #"); Serial.println(c);
     if (connect()) {
       return 1;
     }
@@ -84,7 +84,7 @@ bool Kellegous_Agent::waitForConnect() {
     delay(delayFor(c));
     c++;
     
-    if (c > 100) {
+    if (c > 5) {
       resetDevice();
     }
   }
