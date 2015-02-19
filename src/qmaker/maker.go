@@ -42,7 +42,7 @@ func goBuild(dst string, srcs []string, gopath []string, goos, goarch string, go
 		env = append(env, fmt.Sprintf("GOARCH=%s", goarch))
 	}
 
-	if goarm != 0 {
+	if goarch == "arm" && goarm != 0 {
 		env = append(env, fmt.Sprintf("GOARM=%d", goarm))
 	}
 
@@ -87,12 +87,15 @@ func runOverSsh(host, sh string) error {
 
 func doBuild(args []string) {
 	f := flag.NewFlagSet("build", flag.ContinueOnError)
+	flagArch, flagOs, flagArm := buildFlags(f)
 	f.Parse(args)
 
 	if err := goBuild("bin/qagent",
 		[]string{"src/qagent/agent.go", "src/qagent/conns.go"},
 		[]string{".", "dep"},
-		"", "", 0); err != nil {
+		*flagOs,
+		*flagArch,
+		*flagArm); err != nil {
 		os.Exit(1)
 	}
 
@@ -136,11 +139,15 @@ func binData(dst, dir, pfx string) error {
 	return cmd.Run()
 }
 
+func buildFlags(f *flag.FlagSet) (*string, *string, *int) {
+	return f.String("arch", "ppc64", ""),
+		f.String("os", "linux", ""),
+		f.Int("arm", 0, "")
+}
+
 func doDeploy(args []string) {
 	f := flag.NewFlagSet("deploy", flag.ContinueOnError)
-	flagArch := f.String("arch", "arm", "")
-	flagOs := f.String("os", "linux", "")
-	flagArm := f.Int("arm", 5, "")
+	flagArch, flagOs, flagArm := buildFlags(f)
 	f.Parse(args)
 
 	if f.NArg() != 1 {
@@ -172,6 +179,12 @@ func doDeploy(args []string) {
 	if err := copy(
 		filepath.Join(dst, "qagent.service"),
 		"src/qmaker/qagent.service"); err != nil {
+		os.Exit(1)
+	}
+
+	if err := copy(
+		filepath.Join(dst, "qagent.conf"),
+		"src/qmaker/qagent.conf"); err != nil {
 		os.Exit(1)
 	}
 
@@ -208,7 +221,7 @@ func doDeploy(args []string) {
 
 	defer runOverSsh(host, "rm -f qinstall")
 
-	if err := runOverSsh(host, "./qinstall"); err != nil {
+	if err := runOverSsh(host, "./qinstall --init-with=upstart"); err != nil {
 		os.Exit(1)
 	}
 }

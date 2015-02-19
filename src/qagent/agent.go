@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
@@ -11,10 +12,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"qself/heart"
-	"qself/store"
-	"qself/upload/gcs"
+	"qself/store/pg"
+	"strings"
 	"sync"
 	"time"
 )
@@ -32,12 +32,10 @@ const (
 )
 
 type Context struct {
-	uploader    *gcs.Client
 	lock        sync.RWMutex
+	store       *pg.Store
 	heartStats  *heart.Stats
-	heartStore  *store.Writer
 	lastHeartAt time.Time
-	tempStore   *store.Writer
 	lastTemp    uint16
 	lastTempAt  time.Time
 	conns       Conns
@@ -57,13 +55,12 @@ type Stats struct {
 }
 
 type Config struct {
-	AgentAddr    string `yaml:"AgentAddr"`
-	HttpAddr     string `yaml:"HttpAddr"`
-	DataDir      string `yaml:"DataDir"`
-	ClientId     string `yaml:"ClientId"`
-	ClientSecret string `yaml:"ClientSecret"`
-	Bucket       string `yaml:"Bucket"`
-	Token        string `yaml:"Token"`
+	AgentAddr string `yaml:"AgentAddr"`
+	HttpAddr  string `yaml:"HttpAddr"`
+	Pg        struct {
+		Host     string `yaml:"Host"`
+		Database string `yaml:"Database"`
+	} `yaml:"Pg"`
 }
 
 func (c *Config) Write(filename string) error {
@@ -73,6 +70,19 @@ func (c *Config) Write(filename string) error {
 	}
 
 	return ioutil.WriteFile(filename, b, os.ModePerm)
+}
+
+func (c *Config) PgConnectionString() string {
+	cs := []string{
+		fmt.Sprintf("dbname=%s", c.Pg.Database),
+	}
+
+	if c.Pg.Host != "" {
+		cs = append(cs, "sslmode=require")
+		cs = append(cs, fmt.Sprintf("host=%s", c.Pg.Host))
+	}
+
+	return strings.Join(cs, " ")
 }
 
 func tmpFromRaw(raw uint16) float32 {
@@ -88,7 +98,7 @@ func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
 		return nil
 	}
 
-	c.heartStore.Write(t, rr)
+	c.store.Hrt().Write(t, rr)
 
 	return nil
 }
@@ -127,7 +137,7 @@ func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
 		return nil
 	}
 
-	c.tempStore.Write(t, raw)
+	c.store.Tmp().Write(t, raw)
 
 	return nil
 }
@@ -259,55 +269,14 @@ func ListenForSensors(addr string, ctx *Context) error {
 	return nil
 }
 
-func Upload(up *gcs.Client, service, filename string) error {
-	key := filepath.Join(gcsPathPrefix, service, filepath.Base(filename))
-	err := up.Upload(key, filename)
-	if err == nil {
-		return nil
-	}
-
-	// TODO(knorton): This should notify me in some way that data is not pipelining
-	// back propertly.
-	log.Printf("WARNING: upload failed for %s", key)
-	return err
-}
-
-func MakeContext(ctx *Context, up *gcs.Client, dir string) error {
-	hc := store.Config{
-		Dir: filepath.Join(dir, "hrm"),
-		NeedsUpload: func(filename string) store.UploadOp {
-			if err := Upload(up, "hrm", filename); err != nil {
-				return store.UploadKeep
-			}
-			return store.UploadRemove
-		},
-	}
-
-	tc := store.Config{
-		Dir: filepath.Join(dir, "tmp"),
-		NeedsUpload: func(filename string) store.UploadOp {
-			if err := Upload(up, "tmp", filename); err != nil {
-				return store.UploadKeep
-			}
-			return store.UploadRemove
-		},
-	}
-
-	hs, err := store.Start(&hc, store.UploadDaily)
+func MakeContext(ctx *Context, cfg *Config) error {
+	s, err := pg.Open(cfg.PgConnectionString())
 	if err != nil {
 		return err
 	}
 
-	ts, err := store.Start(&tc, store.UploadDaily)
-	if err != nil {
-		hs.Stop()
-		return err
-	}
-
+	ctx.store = s
 	ctx.heartStats = heart.NewStats(16, 100)
-	ctx.heartStore = hs
-	ctx.tempStore = ts
-	ctx.uploader = up
 	return nil
 }
 
@@ -318,32 +287,6 @@ func ReadConfig(cfg *Config, filename string) error {
 	}
 
 	return yaml.Unmarshal(b, &cfg)
-}
-
-func Authenticate(filename string, cfg *Config) (*gcs.Client, error) {
-	if err := ReadConfig(cfg, filename); err != nil {
-		return nil, err
-	}
-
-	c := gcs.Config{
-		ClientId:     cfg.ClientId,
-		ClientSecret: cfg.ClientSecret,
-		Bucket:       cfg.Bucket,
-		Token:        cfg.Token,
-	}
-
-	s, err := gcs.Authenticate(&c)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.Token = c.Token
-
-	if err := cfg.Write(filename); err != nil {
-		return nil, err
-	}
-
-	return s, err
 }
 
 func writeJson(w http.ResponseWriter, data interface{}) error {
@@ -376,13 +319,12 @@ func main() {
 	flag.Parse()
 
 	var cfg Config
-	u, err := Authenticate(*flagCfg, &cfg)
-	if err != nil {
+	if err := ReadConfig(&cfg, *flagCfg); err != nil {
 		log.Panic(err)
 	}
 
 	var ctx Context
-	if err := MakeContext(&ctx, u, cfg.DataDir); err != nil {
+	if err := MakeContext(&ctx, &cfg); err != nil {
 		log.Panic(err)
 	}
 

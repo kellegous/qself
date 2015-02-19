@@ -2,12 +2,19 @@ package main
 
 import (
 	"bytes"
+	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
+)
+
+const (
+	systemdCmd = "systemctl"
+	upstartCmd = "service"
 )
 
 func getUid() (string, error) {
@@ -57,8 +64,54 @@ func beRoot() {
 	os.Exit(0)
 }
 
-func systemctl(args ...string) error {
-	cmd := exec.Command("systemctl", args...)
+type service interface {
+	Start() error
+	Stop() error
+	UpdateConfig() error
+}
+
+type systemd struct {
+	name string
+}
+
+func (s *systemd) Start() error {
+	if err := run("systemctl", "daemon-reload"); err != nil {
+		return err
+	}
+
+	return run("systemctl", "start", s.name)
+}
+
+func (s *systemd) Stop() error {
+	return run("systemctl", "stop", s.name)
+}
+
+func (s *systemd) UpdateConfig() error {
+	return writeAsset(
+		fmt.Sprintf("/etc/systemd/system/%s.service", s.name),
+		fmt.Sprintf("%s.service", s.name))
+}
+
+type upstart struct {
+	name string
+}
+
+func (s *upstart) Start() error {
+	return run("service", s.name, "start")
+}
+
+func (s *upstart) Stop() error {
+	return run("service", s.name, "stop")
+}
+
+func (s *upstart) UpdateConfig() error {
+	return writeAsset(
+		fmt.Sprintf("/etc/init/%s.conf", s.name),
+		fmt.Sprintf("%s.conf", s.name))
+}
+
+func run(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -73,16 +126,30 @@ func writeAsset(dst, name string) error {
 	return ioutil.WriteFile(dst, b, os.ModePerm)
 }
 
-func main() {
-	beRoot()
-
-	if err := systemctl("stop", "qagent"); err != nil {
-		log.Panic(err)
+func pickInitService(sys, svc string) service {
+	if sys == "upstart" {
+		return &upstart{svc}
+	} else if sys == "systemd" {
+		return &systemd{svc}
 	}
 
-	if err := writeAsset(
-		"/etc/systemd/system/qagent.service",
-		"qagent.service"); err != nil {
+	log.Panic(fmt.Sprintf("invalid init service: %s", sys))
+	return nil
+}
+
+func main() {
+	flagInit := flag.String("init-with", "upstart", "")
+	flag.Parse()
+
+	beRoot()
+
+	svc := pickInitService(*flagInit, "qagent")
+
+	if err := svc.Stop(); err != nil {
+		log.Print(err)
+	}
+
+	if err := svc.UpdateConfig(); err != nil {
 		log.Panic(err)
 	}
 
@@ -92,11 +159,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	if err := systemctl("daemon-reload"); err != nil {
-		log.Panic(err)
-	}
-
-	if err := systemctl("start", "qagent"); err != nil {
+	if err := svc.Start(); err != nil {
 		log.Panic(err)
 	}
 }
