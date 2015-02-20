@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
@@ -13,8 +12,7 @@ import (
 	"net/http"
 	"os"
 	"qself/heart"
-	"qself/store/pg"
-	"strings"
+	"qself/store/leveldb"
 	"sync"
 	"time"
 )
@@ -33,7 +31,7 @@ const (
 
 type Context struct {
 	lock        sync.RWMutex
-	store       *pg.Store
+	store       *leveldb.Store
 	heartStats  *heart.Stats
 	lastHeartAt time.Time
 	lastTemp    uint16
@@ -57,10 +55,7 @@ type Stats struct {
 type Config struct {
 	AgentAddr string `yaml:"AgentAddr"`
 	HttpAddr  string `yaml:"HttpAddr"`
-	Pg        struct {
-		Host     string `yaml:"Host"`
-		Database string `yaml:"Database"`
-	} `yaml:"Pg"`
+	Db        string `yaml:"Db"`
 }
 
 func (c *Config) Write(filename string) error {
@@ -70,19 +65,6 @@ func (c *Config) Write(filename string) error {
 	}
 
 	return ioutil.WriteFile(filename, b, os.ModePerm)
-}
-
-func (c *Config) PgConnectionString() string {
-	cs := []string{
-		fmt.Sprintf("dbname=%s", c.Pg.Database),
-	}
-
-	if c.Pg.Host != "" {
-		cs = append(cs, "sslmode=require")
-		cs = append(cs, fmt.Sprintf("host=%s", c.Pg.Host))
-	}
-
-	return strings.Join(cs, " ")
 }
 
 func tmpFromRaw(raw uint16) float32 {
@@ -270,7 +252,7 @@ func ListenForSensors(addr string, ctx *Context) error {
 }
 
 func MakeContext(ctx *Context, cfg *Config) error {
-	s, err := pg.Open(cfg.PgConnectionString())
+	s, err := leveldb.Open(cfg.Db)
 	if err != nil {
 		return err
 	}
