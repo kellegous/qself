@@ -5,21 +5,16 @@ import (
 	"encoding/binary"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"path/filepath"
 	"time"
 )
 
-var (
-	tmpPrefix = []byte("tmp")
-	hrtPrefix = []byte("hrt")
-)
-
 type Writer struct {
-	pfx []byte
+	db  *leveldb.DB
 	str *Store
 }
 
 type Store struct {
-	db *leveldb.DB
 	ch chan func()
 
 	hrt *Writer
@@ -36,10 +31,6 @@ func (s *Store) Tmp() *Writer {
 
 func write(w *Writer, t time.Time, v uint16) error {
 	var kb bytes.Buffer
-	if _, err := kb.Write(w.pfx); err != nil {
-		return err
-	}
-
 	if err := binary.Write(&kb, binary.LittleEndian, t.UnixNano()); err != nil {
 		return err
 	}
@@ -49,10 +40,8 @@ func write(w *Writer, t time.Time, v uint16) error {
 		return err
 	}
 
-	db := w.str.db
 	var wo opt.WriteOptions
-
-	return db.Put(kb.Bytes(), vb.Bytes(), &wo)
+	return w.db.Put(kb.Bytes(), vb.Bytes(), &wo)
 }
 
 func (w *Writer) WriteSync(t time.Time, v uint16) error {
@@ -75,25 +64,30 @@ func service(s *Store) {
 	}
 }
 
-func Open(filename string) (*Store, error) {
+func Open(dir string) (*Store, error) {
+	s := &Store{
+		ch: make(chan func()),
+	}
+
 	var o opt.Options
-	db, err := leveldb.OpenFile(filename, &o)
+
+	hd, err := leveldb.OpenFile(filepath.Join(dir, "hrt"), &o)
 	if err != nil {
 		return nil, err
 	}
 
-	s := &Store{
-		db: db,
-		ch: make(chan func()),
-	}
-
-	s.tmp = &Writer{
-		pfx: tmpPrefix,
+	s.hrt = &Writer{
+		db:  hd,
 		str: s,
 	}
 
-	s.hrt = &Writer{
-		pfx: hrtPrefix,
+	td, err := leveldb.OpenFile(filepath.Join(dir, "tmp"), &o)
+	if err != nil {
+		return nil, err
+	}
+
+	s.tmp = &Writer{
+		db:  td,
 		str: s,
 	}
 
