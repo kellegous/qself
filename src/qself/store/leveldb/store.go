@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type Writer struct {
+type Collection struct {
 	db  *leveldb.DB
 	str *Store
 }
@@ -17,19 +17,19 @@ type Writer struct {
 type Store struct {
 	ch chan func()
 
-	hrt *Writer
-	tmp *Writer
+	hrt *Collection
+	tmp *Collection
 }
 
-func (s *Store) Hrt() *Writer {
+func (s *Store) Hrt() *Collection {
 	return s.hrt
 }
 
-func (s *Store) Tmp() *Writer {
+func (s *Store) Tmp() *Collection {
 	return s.tmp
 }
 
-func write(w *Writer, t time.Time, v uint16) error {
+func write(w *Collection, t time.Time, v uint16) error {
 	var kb bytes.Buffer
 	if err := binary.Write(&kb, binary.LittleEndian, t.UnixNano()); err != nil {
 		return err
@@ -44,7 +44,7 @@ func write(w *Writer, t time.Time, v uint16) error {
 	return w.db.Put(kb.Bytes(), vb.Bytes(), &wo)
 }
 
-func (w *Writer) WriteSync(t time.Time, v uint16) error {
+func (w *Collection) WriteSync(t time.Time, v uint16) error {
 	ch := make(chan error)
 	w.str.ch <- func() {
 		ch <- write(w, t, v)
@@ -52,7 +52,7 @@ func (w *Writer) WriteSync(t time.Time, v uint16) error {
 	return <-ch
 }
 
-func (w *Writer) Write(t time.Time, v uint16) {
+func (w *Collection) Write(t time.Time, v uint16) {
 	w.str.ch <- func() {
 		write(w, t, v)
 	}
@@ -76,7 +76,7 @@ func Open(dir string) (*Store, error) {
 		return nil, err
 	}
 
-	s.hrt = &Writer{
+	s.hrt = &Collection{
 		db:  hd,
 		str: s,
 	}
@@ -86,7 +86,7 @@ func Open(dir string) (*Store, error) {
 		return nil, err
 	}
 
-	s.tmp = &Writer{
+	s.tmp = &Collection{
 		db:  td,
 		str: s,
 	}
