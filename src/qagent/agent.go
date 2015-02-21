@@ -11,15 +11,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"qself/heart"
-	"qself/store/leveldb"
-	"sync"
+	"qagent/api"
+	"qagent/ctx"
 	"time"
-)
-
-const (
-	heartResetAfter = 2 * time.Second
-	gcsPathPrefix   = "qself"
 )
 
 const (
@@ -28,29 +22,6 @@ const (
 	cmdTmp byte = 0x01
 	cmdUpg byte = 0x02
 )
-
-type Context struct {
-	lock        sync.RWMutex
-	store       *leveldb.Store
-	heartStats  *heart.Stats
-	lastHeartAt time.Time
-	lastTemp    uint16
-	lastTempAt  time.Time
-	conns       Conns
-}
-
-type Stats struct {
-	Hrt struct {
-		Active      bool
-		Rate        float32
-		Variability float32
-	}
-
-	Tmp struct {
-		Active bool
-		Temp   float32
-	}
-}
 
 type Config struct {
 	AgentAddr string `yaml:"AgentAddr"`
@@ -67,90 +38,16 @@ func (c *Config) Write(filename string) error {
 	return ioutil.WriteFile(filename, b, os.ModePerm)
 }
 
-func tmpFromRaw(raw uint16) float32 {
-	return float32(raw) / 100.0
-}
-
-func rawFromTmp(tmp float32) uint16 {
-	return uint16(tmp * 100.0)
-}
-
-func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
-	if !updateHrm(c, t, rr) {
-		return nil
-	}
-
-	c.store.Hrt().Write(t, rr)
-
-	return nil
-}
-
-func updateHrm(c *Context, t time.Time, rr uint16) bool {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	hs := c.heartStats
-
-	if t.Sub(c.lastHeartAt) > heartResetAfter {
-		hs.Reset()
-	}
-
-	c.lastHeartAt = t
-	hs.AddInterval(rr)
-	return true
-}
-
-func updateTmp(c *Context, t time.Time, raw uint16) bool {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.lastTempAt = t
-	if raw == c.lastTemp {
-		return false
-	}
-
-	c.lastTemp = raw
-	return true
-}
-
-func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
-
-	if !updateTmp(c, t, raw) {
-		return nil
-	}
-
-	c.store.Tmp().Write(t, raw)
-
-	return nil
-}
-
-func (c *Context) StatsFor(s *Stats) {
-	t := time.Now()
-
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-
-	hs := c.heartStats
-
-	if hs.CanReport() && t.Sub(c.lastHeartAt) < 2*time.Second {
-		s.Hrt.Active = true
-		s.Hrt.Rate = hs.Hr()
-		s.Hrt.Variability = float32(hs.HrvLnRmssd20())
-	} else {
-		s.Hrt.Active = false
-		s.Hrt.Rate = 0.0
-		s.Hrt.Variability = 0.0
-	}
-
-	s.Tmp.Active = t.Sub(c.lastTempAt) < 2*time.Second
-	s.Tmp.Temp = tmpFromRaw(c.lastTemp)
+type Fe struct {
+	ctx.Context
+	conns Conns
 }
 
 func uintValueFrom(buf []byte) uint16 {
 	return uint16(buf[0])<<8 | uint16(buf[1])
 }
 
-func ServeAdvanced(con net.Conn, ctx *Context) {
+func ServeAdvanced(con net.Conn, fe *Fe) {
 	var cmd byte
 	var t int64
 	var v uint16
@@ -173,11 +70,11 @@ func ServeAdvanced(con net.Conn, ctx *Context) {
 
 		switch cmd {
 		case cmdHrt:
-			if err := ctx.DidReceiveHrm(time.Unix(0, t), v); err != nil {
+			if err := fe.DidReceiveHrm(time.Unix(0, t), v); err != nil {
 				log.Panic(err)
 			}
 		case cmdTmp:
-			if err := ctx.DidReceiveTmp(time.Unix(0, t), v); err != nil {
+			if err := fe.DidReceiveTmp(time.Unix(0, t), v); err != nil {
 				log.Panic(err)
 			}
 		case cmdRst, cmdUpg:
@@ -186,13 +83,13 @@ func ServeAdvanced(con net.Conn, ctx *Context) {
 	}
 }
 
-func ServeBasic(id int, con net.Conn, ctx *Context) {
+func ServeBasic(id int, con net.Conn, fe *Fe) {
 	defer func() {
-		ctx.conns.DidDisconnect(id)
+		fe.conns.DidDisconnect(id)
 		con.Close()
 	}()
 
-	ctx.conns.DidConnect(id)
+	fe.conns.DidConnect(id)
 
 	var buf [3]byte
 	for {
@@ -204,16 +101,16 @@ func ServeBasic(id int, con net.Conn, ctx *Context) {
 
 		switch buf[0] {
 		case cmdUpg:
-			ServeAdvanced(con, ctx)
+			ServeAdvanced(con, fe)
 			return
 		case cmdRst:
 			continue
 		case cmdHrt:
-			if err := ctx.DidReceiveHrm(time.Now(), uintValueFrom(buf[1:])); err != nil {
+			if err := fe.DidReceiveHrm(time.Now(), uintValueFrom(buf[1:])); err != nil {
 				log.Print(err)
 			}
 		case cmdTmp:
-			if err := ctx.DidReceiveTmp(time.Now(), uintValueFrom(buf[1:])); err != nil {
+			if err := fe.DidReceiveTmp(time.Now(), uintValueFrom(buf[1:])); err != nil {
 				log.Print(err)
 			}
 		default:
@@ -223,7 +120,7 @@ func ServeBasic(id int, con net.Conn, ctx *Context) {
 	}
 }
 
-func ListenForSensors(addr string, ctx *Context) error {
+func ListenForSensors(addr string, fe *Fe) error {
 	a, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return err
@@ -243,22 +140,11 @@ func ListenForSensors(addr string, ctx *Context) error {
 				continue
 			}
 
-			go ServeBasic(id, con, ctx)
+			go ServeBasic(id, con, fe)
 			id++
 		}
 	}()
 
-	return nil
-}
-
-func MakeContext(ctx *Context, cfg *Config) error {
-	s, err := leveldb.Open(cfg.Db)
-	if err != nil {
-		return err
-	}
-
-	ctx.store = s
-	ctx.heartStats = heart.NewStats(16, 100)
 	return nil
 }
 
@@ -276,24 +162,20 @@ func writeJson(w http.ResponseWriter, data interface{}) error {
 	return json.NewEncoder(w).Encode(data)
 }
 
-func RunHttp(addr string, ctx *Context) error {
-	http.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
-		var res Stats
-		ctx.StatsFor(&res)
+func RunHttp(addr string, fe *Fe) error {
 
-		if err := writeJson(w, &res); err != nil {
-			log.Panic(err)
-		}
-	})
+	m := http.NewServeMux()
 
-	http.HandleFunc("/api/conns", func(w http.ResponseWriter, r *http.Request) {
-		res := ctx.conns.Conns()
+	api.Setup(m, &fe.Context)
+
+	m.HandleFunc("/api/conns", func(w http.ResponseWriter, r *http.Request) {
+		res := fe.conns.Conns()
 		if err := writeJson(w, res); err != nil {
 			log.Panic(err)
 		}
 	})
 
-	return http.ListenAndServe(addr, nil)
+	return http.ListenAndServe(addr, m)
 }
 
 func main() {
@@ -305,16 +187,16 @@ func main() {
 		log.Panic(err)
 	}
 
-	var ctx Context
-	if err := MakeContext(&ctx, &cfg); err != nil {
+	var fe Fe
+	if err := ctx.Make(&fe.Context, cfg.Db); err != nil {
 		log.Panic(err)
 	}
 
-	if err := ListenForSensors(cfg.AgentAddr, &ctx); err != nil {
+	if err := ListenForSensors(cfg.AgentAddr, &fe); err != nil {
 		log.Panic(err)
 	}
 
-	if err := RunHttp(cfg.HttpAddr, &ctx); err != nil {
+	if err := RunHttp(cfg.HttpAddr, &fe); err != nil {
 		log.Panic(err)
 	}
 }
