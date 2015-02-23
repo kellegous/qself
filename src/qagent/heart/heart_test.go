@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func closeEnough(a, b, thresh float32) bool {
+func closeEnough(a, b, thresh float64) bool {
 	return math.Abs(float64(a-b)) < float64(thresh)
 }
 

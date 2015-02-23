@@ -24,13 +24,13 @@ type Context struct {
 type Stats struct {
 	Hrt struct {
 		Active      bool
-		Rate        float32
-		Variability float32
+		Rate        float64
+		Variability float64
 	}
 
 	Tmp struct {
 		Active bool
-		Temp   float32
+		Temp   float64
 	}
 }
 
@@ -94,7 +94,7 @@ func (c *Context) StatsFor(s *Stats) {
 	if hs.CanReport() && t.Sub(c.lastHeartAt) < 2*time.Second {
 		s.Hrt.Active = true
 		s.Hrt.Rate = hs.Hr()
-		s.Hrt.Variability = float32(hs.HrvLnRmssd20())
+		s.Hrt.Variability = hs.HrvLnRmssd20()
 	} else {
 		s.Hrt.Active = false
 		s.Hrt.Rate = 0.0

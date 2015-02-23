@@ -1,9 +1,9 @@
 package temp
 
-func FromRaw(raw uint16) float32 {
-	return float32(raw) / 100.0
+func FromRaw(raw uint16) float64 {
+	return float64(raw) / 100.0
 }
 
-func ToRaw(tmp float32) uint16 {
+func ToRaw(tmp float64) uint16 {
 	return uint16(tmp * 100.0)
 }
