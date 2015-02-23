@@ -5,7 +5,9 @@ import (
 	"log"
 	"net/http"
 	"qagent/ctx"
+	"qagent/heart"
 	"qagent/store"
+	"qagent/temp"
 	"strconv"
 	"time"
 )
@@ -30,42 +32,114 @@ func intParamFrom(r *http.Request, name string, def int) int {
 	return int(i)
 }
 
-type hourlyData struct {
-	Time  time.Time
-	Avg   float64
-	Count int
-}
-
-func apiHourly(c *store.Collection, w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
-
-	startN := intParamFrom(r, "start", 0)
-	limitN := intParamFrom(r, "limit", 10)
-
-	start := time.Now().Round(time.Hour).Add(-time.Duration(startN+limitN) * time.Hour)
+func eachHour(c *store.Collection, startN, limitN int, fn func(ix int, t time.Time, v []uint16) error) error {
+	start := time.Now().Truncate(time.Hour).Add(-time.Duration(startN+limitN) * time.Hour)
 	limit := start.Add(time.Duration(limitN) * time.Hour)
 
-	res := make([]hourlyData, limitN)
-	for i := 0; i < limitN; i++ {
-		res[i].Time = start.Add(time.Duration(i) * time.Hour)
-	}
+	cix := 0
+	var sam []uint16
 
 	if err := c.ForEachInRange(
 		start,
 		limit,
 		func(t time.Time, v uint16) error {
 			ix := int(t.Sub(start).Hours())
-			res[ix].Avg += float64(v)
-			res[ix].Count++
+			if cix == ix {
+				sam = append(sam, v)
+				return nil
+			}
+
+			for cix < ix {
+				if err := fn(cix, start.Add(time.Duration(cix)*time.Hour), sam); err != nil {
+					return err
+				}
+
+				cix++
+				sam = sam[:0]
+			}
+
+			return nil
+		}); err != nil {
+		return err
+	}
+
+	for cix < limitN {
+		if err := fn(cix, start.Add(time.Duration(cix)*time.Hour), sam); err != nil {
+			return err
+		}
+
+		cix++
+		sam = sam[:0]
+	}
+
+	return nil
+}
+
+type hourlyHrt struct {
+	Time  time.Time
+	Hr    float64
+	Hrv   float64
+	Count int
+}
+
+func apiHourlyHrt(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	startN := intParamFrom(r, "start", 0)
+	limitN := intParamFrom(r, "limit", 10)
+
+	res := make([]hourlyHrt, limitN)
+
+	if err := eachHour(
+		c.Store().Hrt(),
+		startN,
+		limitN,
+		func(ix int, t time.Time, vals []uint16) error {
+			n := len(vals)
+			res[ix].Time = t
+			res[ix].Count = n
+
+			if n == 0 {
+				return nil
+			}
+
+			res[ix].Hr = heart.Hr(vals)
+			res[ix].Hrv = heart.HrvLnRmssd20(vals)
 			return nil
 		}); err != nil {
 		log.Panic(err)
 	}
 
-	for i := 0; i < limitN; i++ {
-		if res[i].Count > 0 {
-			res[i].Avg /= float64(res[i].Count)
-		}
+	Must(WriteJson(w, &res))
+}
+
+type hourlyTmp struct {
+	Time  time.Time
+	Temp  float64
+	Count int
+}
+
+func apiHourlyTmp(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	startN := intParamFrom(r, "start", 0)
+	limitN := intParamFrom(r, "limit", 10)
+
+	res := make([]hourlyTmp, limitN)
+
+	if err := eachHour(
+		c.Store().Tmp(),
+		startN,
+		limitN,
+		func(ix int, t time.Time, vals []uint16) error {
+			n := len(vals)
+			res[ix].Time = t
+			res[ix].Count = n
+
+			if n == 0 {
+				return nil
+			}
+
+			res[ix].Temp = temp.Average(vals)
+			return nil
+		}); err != nil {
+		log.Panic(err)
 	}
 
 	Must(WriteJson(w, &res))
@@ -79,10 +153,10 @@ func Setup(m *http.ServeMux, c *ctx.Context) {
 	})
 
 	m.HandleFunc("/api/hourly/hrt", func(w http.ResponseWriter, r *http.Request) {
-		apiHourly(c.Store().Hrt(), w, r)
+		apiHourlyHrt(c, w, r)
 	})
 
 	m.HandleFunc("/api/hourly/tmp", func(w http.ResponseWriter, r *http.Request) {
-		apiHourly(c.Store().Tmp(), w, r)
+		apiHourlyTmp(c, w, r)
 	})
 }
