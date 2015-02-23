@@ -105,6 +105,10 @@ func (c *Context) StatsFor(s *Stats) {
 	s.Tmp.Temp = temp.FromRaw(c.lastTemp)
 }
 
+func (c *Context) Store() *store.Store {
+	return c.store
+}
+
 func Make(ctx *Context, dbpath string) error {
 	s, err := store.Open(dbpath)
 	if err != nil {

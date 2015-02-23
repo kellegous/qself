@@ -6,11 +6,17 @@ import (
 	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"path/filepath"
 	"time"
 )
 
 var BailOut = errors.New("stop")
+
+var (
+	StartOfTime = time.Time{}
+	LimitOfTime = time.Date(4000, 1, 1, 0, 0, 0, 0, time.Local)
+)
 
 type Collection struct {
 	db  *leveldb.DB
@@ -77,6 +83,33 @@ func dispatchTo(key, val []byte, fn func(t time.Time, v uint16) error) error {
 	}
 
 	return fn(time.Unix(0, t), v)
+}
+
+func timeToBytes(t time.Time) []byte {
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.BigEndian, t.UnixNano())
+	return buf.Bytes()
+}
+
+func (c *Collection) ForEachInRange(start, limit time.Time, fn func(t time.Time, v uint16) error) error {
+	var ro opt.ReadOptions
+	it := c.db.NewIterator(&util.Range{
+		Start: timeToBytes(start),
+		Limit: timeToBytes(limit),
+	}, &ro)
+	defer it.Release()
+
+	for it.Next() {
+		if err := dispatchTo(it.Key(), it.Value(), fn); err != nil {
+			if err == BailOut {
+				return nil
+			} else if err != nil {
+				return err
+			}
+		}
+	}
+
+	return it.Error()
 }
 
 func (c *Collection) ForEachFromEnd(fn func(t time.Time, v uint16) error) error {
