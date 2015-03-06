@@ -26,7 +26,7 @@ public class UpdateService extends Service {
 
     private AgentApi.Status mStatus = new AgentApi.Status();
 
-    private String mOrigin = "http://turtle.kellego.us:8077";
+    private String mOrigin = "http://flint.kellego.us:8077";
 
     private Handler mHandler;
 

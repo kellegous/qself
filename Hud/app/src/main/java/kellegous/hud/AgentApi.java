@@ -1,5 +1,6 @@
 package kellegous.hud;
 
+import android.util.JsonReader;
 import android.util.Log;
 
 import org.apache.http.HttpResponse;
@@ -11,6 +12,10 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 /**
  * Created by knorton on 2/8/15.
@@ -18,43 +23,198 @@ import java.io.IOException;
 public class AgentApi {
     private static final String TAG = AgentApi.class.getSimpleName();
 
-    private static String fetch(String url) throws IOException {
+    private static JsonReader fetchJson(String url) throws IOException {
         HttpResponse res = new DefaultHttpClient().execute(new HttpGet(url));
-        return EntityUtils.toString(res.getEntity());
+        return new JsonReader(new InputStreamReader(res.getEntity().getContent(), "UTF-8"));
     }
 
-    public static class Hrt {
-        private boolean mActive;
-        private double mRate;
-        private double mVariability;
+    public static class Hourly {
+        public static class Hrt {
+            private Date mDate;
+            private double mHr;
+            private double mHrv;
+            private int mCount;
 
-        public boolean active() {
-            return mActive;
+            public Date date() {
+                return mDate;
+            }
+
+            public double rate() {
+                return mHr;
+            }
+
+            public double variability() {
+                return mHrv;
+            }
+
+            public int count() {
+                return mCount;
+            }
+
+            private static void parseList(JsonReader r, List<Hrt> hrts) throws IOException {
+                r.beginArray();
+                while (r.hasNext()) {
+                    hrts.add(parse(r, new Hrt()));
+                }
+                r.endArray();
+            }
+
+            private static Hrt parse(JsonReader r, Hrt hrt) throws IOException {
+                r.beginObject();
+                while (r.hasNext()) {
+                    String name = r.nextName();
+                    if (name.equals("Time")) {
+                        hrt.mDate = new Date(); // TODO(knorton): Fix
+                    } else if (name.equals("Hr")) {
+                        hrt.mHr = r.nextDouble();
+                    } else if (name.equals("Hrv")) {
+                        hrt.mHrv = r.nextDouble();
+                    } else if (name.equals("Count")) {
+                        hrt.mCount = r.nextInt();
+                    } else {
+                        r.skipValue();
+                    }
+                }
+                r.endObject();
+                return hrt;
+            }
         }
 
-        public double rate() {
-            return mRate;
+        public static class Tmp {
+            private Date mDate;
+            private double mTmp;
+            private int mCount;
+
+            public Date date() {
+                return mDate;
+            }
+
+            public double temp() {
+                return mTmp;
+            }
+
+            private static void parseList(JsonReader r, List<Tmp> tmps) throws IOException {
+                r.beginArray();
+                while (r.hasNext()) {
+                    tmps.add(parse(r, new Tmp()));
+                }
+                r.endArray();
+            }
+
+            private static Tmp parse(JsonReader r, Tmp tmp) throws IOException {
+                r.beginObject();
+                while (r.hasNext()) {
+                    String name = r.nextName();
+                    if (name.equals("Time")) {
+                        tmp.mDate = new Date(); // TODO(knorton): Fix
+                    } else if (name.equals("Temp")) {
+                        tmp.mTmp = r.nextDouble();
+                    } else if (name.equals("Count")) {
+                        tmp.mCount = r.nextInt();
+                    } else {
+                        r.skipValue();
+                    }
+                }
+                r.endObject();
+                return tmp;
+            }
         }
 
-        public double variability() {
-            return mVariability;
+        private List<Tmp> mTmp = new ArrayList<>();
+        private List<Hrt> mHrt = new ArrayList<>();
+
+        public List<Tmp> tmp() {
+            return mTmp;
+        }
+
+        public List<Hrt> hrt() {
+            return mHrt;
+        }
+
+        private static Hourly parse(JsonReader r, Hourly hourly) throws IOException {
+            r.beginObject();
+            while (r.hasNext()) {
+                String name = r.nextName();
+                if (name.equals("Hrt")) {
+                } else if (name.equals("Tmp")) {
+                } else {
+                    r.skipValue();
+                }
+            }
+            r.endObject();
+            return hourly;
         }
     }
 
-    public static class Tmp {
-        private boolean mActive;
-        private double mTemp;
-
-        public boolean active() {
-            return mActive;
-        }
-
-        public double temp() {
-            return mTemp;
-        }
+    public static Hourly getHourly(String origin, int start, int limit) throws IOException {
+        JsonReader r = fetchJson(origin + "/api/hourly/all");
+        return Hourly.parse(r, new Hourly());
     }
 
     public static class Status {
+        public static class Hrt {
+            private boolean mActive;
+            private double mRate;
+            private double mVariability;
+
+            public boolean active() {
+                return mActive;
+            }
+
+            public double rate() {
+                return mRate;
+            }
+
+            public double variability() {
+                return mVariability;
+            }
+
+            private static void parse(JsonReader r, Status.Hrt hrt) throws IOException {
+                r.beginObject();
+                while (r.hasNext()) {
+                    String name = r.nextName();
+                    if (name.equals("Active")) {
+                        hrt.mActive = r.nextBoolean();
+                    } else if (name.equals("Rate")) {
+                        hrt.mRate = r.nextDouble();
+                    } else if (name.equals("Variability")) {
+                        hrt.mVariability = r.nextDouble();
+                    } else {
+                        r.skipValue();
+                    }
+                }
+                r.endObject();
+            }
+        }
+
+        public static class Tmp {
+            private boolean mActive;
+            private double mTemp;
+
+            public boolean active() {
+                return mActive;
+            }
+
+            public double temp() {
+                return mTemp;
+            }
+
+            private static void parse(JsonReader r, Status.Tmp tmp) throws IOException {
+                r.beginObject();
+                while (r.hasNext()) {
+                    String name = r.nextName();
+                    if (name.equals("Active")) {
+                        tmp.mActive = r.nextBoolean();
+                    } else if (name.equals("Temp")) {
+                        tmp.mTemp = r.nextDouble();
+                    } else {
+                        r.skipValue();
+                    }
+                }
+                r.endObject();
+            }
+        }
+
         private final Hrt mHrt = new Hrt();
         private final Tmp mTmp = new Tmp();
 
@@ -65,25 +225,26 @@ public class AgentApi {
         public Tmp tmp() {
             return mTmp;
         }
+
+        private static Status parse(JsonReader r, Status status) throws IOException {
+            r.beginObject();
+            while (r.hasNext()) {
+                String name = r.nextName();
+                if (name.equals("Hrt")) {
+                    Hrt.parse(r, status.mHrt);
+                } else if (name.equals("Tmp")) {
+                    Tmp.parse(r, status.mTmp);
+                } else {
+                    r.skipValue();
+                }
+            }
+            r.endObject();
+            return status;
+        }
     }
 
-    public static Status getStatus(String origin) throws IOException, JSONException {
-        JSONObject json = new JSONObject(fetch(origin + "/api/status"));
-
-        Status status = new Status();
-        JSONObject hrt = json.getJSONObject("Hrt");
-        if (hrt != null) {
-            status.mHrt.mActive = hrt.getBoolean("Active");
-            status.mHrt.mRate = hrt.getDouble("Rate");
-            status.mHrt.mVariability = hrt.getDouble("Variability");
-        }
-
-        JSONObject tmp = json.getJSONObject("Tmp");
-        if (tmp != null) {
-            status.mTmp.mActive = tmp.getBoolean("Active");
-            status.mTmp.mTemp = tmp.getDouble("Temp");
-        }
-
-        return status;
+    public static Status getStatus(String origin) throws IOException {
+        JsonReader r = fetchJson(origin + "/api/status");
+        return Status.parse(r, new Status());
     }
 }

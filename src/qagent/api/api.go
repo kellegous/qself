@@ -82,16 +82,12 @@ type hourlyHrt struct {
 	Count int
 }
 
-func apiHourlyHrt(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
-	startN := intParamFrom(r, "start", 0)
-	limitN := intParamFrom(r, "limit", 10)
-
-	res := make([]hourlyHrt, limitN)
-
+func getHourlyHrt(c *ctx.Context, start, limit int) ([]hourlyHrt, error) {
+	res := make([]hourlyHrt, limit)
 	if err := eachHour(
 		c.Store().Hrt(),
-		startN,
-		limitN,
+		start,
+		limit,
 		func(ix int, t time.Time, vals []uint16) error {
 			n := len(vals)
 			res[ix].Time = t
@@ -105,9 +101,18 @@ func apiHourlyHrt(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 			res[ix].Hrv = heart.HrvLnRmssd20(vals)
 			return nil
 		}); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func apiHourlyHrt(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	res, err := getHourlyHrt(c,
+		intParamFrom(r, "start", 0),
+		intParamFrom(r, "limit", 10))
+	if err != nil {
 		log.Panic(err)
 	}
-
 	Must(WriteJson(w, &res))
 }
 
@@ -117,16 +122,12 @@ type hourlyTmp struct {
 	Count int
 }
 
-func apiHourlyTmp(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
-	startN := intParamFrom(r, "start", 0)
-	limitN := intParamFrom(r, "limit", 10)
-
-	res := make([]hourlyTmp, limitN)
-
+func getHourlyTmp(c *ctx.Context, start, limit int) ([]hourlyTmp, error) {
+	res := make([]hourlyTmp, limit)
 	if err := eachHour(
 		c.Store().Tmp(),
-		startN,
-		limitN,
+		start,
+		limit,
 		func(ix int, t time.Time, vals []uint16) error {
 			n := len(vals)
 			res[ix].Time = t
@@ -139,7 +140,40 @@ func apiHourlyTmp(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 			res[ix].Temp = temp.Average(vals)
 			return nil
 		}); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func apiHourlyTmp(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	res, err := getHourlyTmp(c,
+		intParamFrom(r, "start", 0),
+		intParamFrom(r, "limit", 10))
+	if err != nil {
 		log.Panic(err)
+	}
+	Must(WriteJson(w, &res))
+}
+
+// TODO(knorton): The intent is to do this in parallel.
+func apiHourlyAll(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	start := intParamFrom(r, "start", 0)
+	limit := intParamFrom(r, "limit", 10)
+	tmp, err := getHourlyTmp(c, start, limit)
+	if err != nil {
+		log.Panic(err)
+	}
+	hrt, err := getHourlyHrt(c, start, limit)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	res := struct {
+		Tmp []hourlyTmp
+		Hrt []hourlyHrt
+	}{
+		tmp,
+		hrt,
 	}
 
 	Must(WriteJson(w, &res))
@@ -158,5 +192,9 @@ func Setup(m *http.ServeMux, c *ctx.Context) {
 
 	m.HandleFunc("/api/hourly/tmp", func(w http.ResponseWriter, r *http.Request) {
 		apiHourlyTmp(c, w, r)
+	})
+
+	m.HandleFunc("/api/hourly/all", func(w http.ResponseWriter, r *http.Request) {
+		apiHourlyAll(c, w, r)
 	})
 }
