@@ -55,15 +55,7 @@ public class MetricHistoryGraph extends View{
 
         setBarColor(a.getColor(R.styleable.MetricHistoryGraph_barColor, 0xff000000));
 
-        setNumberOfSamples(a.getInteger(R.styleable.MetricHistoryGraph_numberOfSamples, 40));
-
-        // just for testing
-        Random r = new Random();
-        double[] data = new double[mNumberOfSamples];
-        for (int i = 0, n = data.length; i < n; i++) {
-            data[i] = r.nextDouble();
-        }
-        setData(data);
+        setNumberOfSamples(a.getInteger(R.styleable.MetricHistoryGraph_numberOfSamples, 24));
 
         a.recycle();
     }
@@ -82,6 +74,7 @@ public class MetricHistoryGraph extends View{
 
     public void setData(double[] data) {
         mData = data;
+        invalidate();
     }
 
     @Override
@@ -112,7 +105,7 @@ public class MetricHistoryGraph extends View{
         int n = Math.min(mData.length, mNumberOfSamples);
         for (int i = 0; i < n; i++) {
             float bx = i*dw + 1;
-            float by = (float)((mData[i]/max) * h);
+            float by = h - Math.max((float)((mData[i]/max) * h), 1.0f);
             canvas.drawRect(pl + bx, pt + by, pl + bx + dw - 2, pt + h, mBarPaint);
         }
     }

@@ -62,4 +62,8 @@ public class MetricHistoryView extends LinearLayout{
     public void setLabel(int refid) {
         mMetricLabel.setText(refid);
     }
+
+    public void setData(double[] data) {
+        mMetricGraph.setData(data);
+    }
 }

@@ -64,6 +64,7 @@ public class AgentApi {
                 while (r.hasNext()) {
                     String name = r.nextName();
                     if (name.equals("Time")) {
+                        r.nextString();
                         hrt.mDate = new Date(); // TODO(knorton): Fix
                     } else if (name.equals("Hr")) {
                         hrt.mHr = r.nextDouble();
@@ -106,6 +107,7 @@ public class AgentApi {
                 while (r.hasNext()) {
                     String name = r.nextName();
                     if (name.equals("Time")) {
+                        r.nextString();
                         tmp.mDate = new Date(); // TODO(knorton): Fix
                     } else if (name.equals("Temp")) {
                         tmp.mTmp = r.nextDouble();
@@ -136,7 +138,9 @@ public class AgentApi {
             while (r.hasNext()) {
                 String name = r.nextName();
                 if (name.equals("Hrt")) {
+                    Hrt.parseList(r, hourly.mHrt);
                 } else if (name.equals("Tmp")) {
+                    Tmp.parseList(r, hourly.mTmp);
                 } else {
                     r.skipValue();
                 }
@@ -147,7 +151,8 @@ public class AgentApi {
     }
 
     public static Hourly getHourly(String origin, int start, int limit) throws IOException {
-        JsonReader r = fetchJson(origin + "/api/hourly/all");
+        JsonReader r = fetchJson(
+                String.format("%s/api/hourly/all?start=%d&limit=%d", origin, start, limit));
         return Hourly.parse(r, new Hourly());
     }
 

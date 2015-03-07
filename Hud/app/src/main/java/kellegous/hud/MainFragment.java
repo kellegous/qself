@@ -13,6 +13,8 @@ import android.view.MenuInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.util.List;
+
 public class MainFragment extends Fragment implements ServiceConnection, UpdateService.Listener {
     private UpdateService mService;
 
@@ -69,8 +71,40 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
     }
 
     @Override
-    public void dataWasUpdated() {
+    public void statusDidUpdate() {
         mHrtView.setValue(mService.getHrt());
         mHrvView.setValue(mService.getHrv());
+    }
+
+    private void updateHrtData(List<AgentApi.Hourly.Hrt> vals) {
+        int n = vals.size();
+        double[] hrt = new double[n];
+        double[] hrv = new double[n];
+
+        for (int i = 0; i < n; i++) {
+            AgentApi.Hourly.Hrt h = vals.get(i);
+            hrt[i] = h.rate();
+            hrv[i] = h.variability();
+        }
+
+        mHrtView.setData(hrt);
+        mHrvView.setData(hrv);
+    }
+
+    private  void updateTmpData(List<AgentApi.Hourly.Tmp> vals) {
+        int n = vals.size();
+        double[] tmp = new double[n];
+        for (int i = 0; i < n; i++) {
+            tmp[i] = vals.get(i).temp();
+        }
+
+        // TODO(knorton): Update the temperature view
+    }
+
+    @Override
+    public void hourlyDidUpdate() {
+        AgentApi.Hourly hourly = mService.getHourly();
+        updateHrtData(hourly.hrt());
+        updateTmpData(hourly.tmp());
     }
 }
