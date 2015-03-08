@@ -3,14 +3,10 @@ package kellegous.hud;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.AttributeSet;
-import android.util.Pair;
 import android.view.View;
-
-import java.util.Random;
 
 /**
  * Created by knorton on 2/8/15.
@@ -20,11 +16,13 @@ public class MetricHistoryGraph extends View{
 
     private int mNumberOfSamples;
     private double[] mData;
+    private boolean[] mInterpolated;
     private String[] mLabels;
 
     private int mGraphHeight;
 
-    private Paint mBarPaint;
+    private Paint mRealBarPaint;
+    private Paint mFakeBarPaint;
 
     private Paint mBgPaint;
 
@@ -48,7 +46,9 @@ public class MetricHistoryGraph extends View{
     }
 
     private void init(Context context) {
-        mBarPaint = new Paint(0);
+        mRealBarPaint = new Paint(0);
+
+        mFakeBarPaint = new Paint(0);
 
         mBgPaint = new Paint(0);
         mBgPaint.setColor(0xffffffff);
@@ -64,24 +64,83 @@ public class MetricHistoryGraph extends View{
                 R.styleable.MetricHistoryGraph,
                 0, 0);
 
-        setBarColor(a.getColor(R.styleable.MetricHistoryGraph_barColor, 0xff000000));
+        setRealBarColor(a.getColor(R.styleable.MetricHistoryGraph_realBarColor, 0xff000000));
+        setFakeBarColor(a.getColor(R.styleable.MetricHistoryGraph_fakeBarColor, 0xff666666));
 
         setNumberOfSamples(a.getInteger(R.styleable.MetricHistoryGraph_numberOfSamples, 24));
 
         a.recycle();
     }
 
-    public void setBarColor(int color) {
-        mBarPaint.setColor(color);
+    public void setRealBarColor(int color) {
+        mRealBarPaint.setColor(color);
+    }
+
+    public void setFakeBarColor(int color) {
+        mFakeBarPaint.setColor(color);
     }
 
     public void setNumberOfSamples(int n) {
         mNumberOfSamples = n;
     }
 
+    /**
+     * Interpolates missing data points.
+     */
+    private void smoothAndAssign(double[] data) {
+        int n = data.length;
+        double[] smoothed = new double[n];
+        boolean[] interpolated = new boolean[n];
+
+        int i = 0;
+        while (i < n) {
+            // if this element is non-zero, just keep it
+            if (data[i] > 0.001) {
+                smoothed[i] = data[i];
+                i++;
+                continue;
+            }
+
+            // otherwise, find the next non-zero item
+            int j = i + 1;
+            for (; j < n; j++) {
+                if (data[j] > 0.001) {
+                    break;
+                }
+            }
+
+            // now average the bookends to fill in the missing values
+            double s = 0.0;
+            int k = 0;
+            if (i > 0) {
+                s += data[i - 1];
+                k++;
+            }
+
+            if (j < n) {
+                s += data[j];
+                k++;
+            }
+
+            if (k == 0) {
+                return;
+            }
+
+            double v = s/k;
+            while (i != j) {
+                smoothed[i] = v;
+                interpolated[i] = true;
+                i++;
+            }
+        }
+
+        mData = smoothed;
+        mInterpolated = interpolated;
+    }
+
     public void setData(String[] labels, double[] data) {
         mLabels = labels;
-        mData = data;
+        smoothAndAssign(data);
         invalidate();
     }
 
@@ -116,7 +175,8 @@ public class MetricHistoryGraph extends View{
         for (int i = 0; i < n; i++) {
             float bx = i*dw + 1;
             float by = h - Math.max((float)((mData[i]/max) * h), 1.0f);
-            canvas.drawRect(pl + bx, pt + by, pl + bx + dw - 2, pt + h, mBarPaint);
+            canvas.drawRect(pl + bx, pt + by, pl + bx + dw - 2, pt + h,
+                    mInterpolated[i] ? mFakeBarPaint : mRealBarPaint);
         }
 
         Rect rect = new Rect();

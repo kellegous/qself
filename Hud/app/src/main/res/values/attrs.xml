@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <declare-styleable name="MetricHistoryGraph">
-        <attr name="barColor" format="color"/>
+        <attr name="realBarColor" format="color"/>
+        <attr name="fakeBarColor" format="color"/>
         <attr name="numberOfSamples" format="integer"/>
     </declare-styleable>
 
