@@ -10,23 +10,6 @@ import (
 
 const baseUrl = "https://api.forecast.io/forecast"
 
-type Time struct {
-	time.Time
-}
-
-func (t *Time) UnmarshalJSON(b []byte) error {
-	var e int64
-	if err := json.Unmarshal(b, &e); err != nil {
-		return err
-	}
-	t.Time = time.Unix(e, 0)
-	return nil
-}
-
-func (t *Time) MarshalJSON() ([]byte, error) {
-	return t.Time.MarshalJSON()
-}
-
 type Area struct {
 	Lat    float64
 	Lon    float64
@@ -49,66 +32,207 @@ func (a *Area) Get() (*Report, error) {
 }
 
 type Currently struct {
-	Temp                 float64 `json:"temperature"`
-	PrecipProbability    float64 `json:"precipProbability"`
-	PrecipIntensity      float64 `json:"precipIntensity"`
-	NearestStormBearing  float64 `json:"nearestStormBearing"`
-	NearestStormDistance float64 `json:"nearestStormDistance"`
-	Icon                 string  `json:"icon"`
-	Summary              string  `json:"summary"`
-	Time                 Time    `json:"time"`
-	ApparentTemp         float64 `json:"apparentTemperature"`
-	DewPoint             float64 `json:"dewPoint"`
-	Humidity             float64 `json:"humidity"`
-	WindSpeed            float64 `json:"windSpeed"`
-	WindBearing          float64 `json:"windBearing"`
-	Visibility           float64 `json:"visibility"`
-	CloudCover           float64 `json:"cloudCover"`
-	Pressure             float64 `json:"pressure"`
+	Temp                 float64
+	PrecipProbability    float64
+	PrecipIntensity      float64
+	NearestStormBearing  float64
+	NearestStormDistance float64
+	Icon                 string
+	Summary              string
+	Time                 time.Time
+	ApparentTemp         float64
+	DewPoint             float64
+	Humidity             float64
+	WindSpeed            float64
+	WindBearing          float64
+	Visibility           float64
+	CloudCover           float64
+	Pressure             float64
+}
+
+func (c *Currently) UnmarshalJSON(b []byte) error {
+	var s struct {
+		Temp                 float64 `json:"temperature"`
+		PrecipProbability    float64 `json:"precipProbability"`
+		PrecipIntensity      float64 `json:"precipIntensity"`
+		NearestStormBearing  float64 `json:"nearestStormBearing"`
+		NearestStormDistance float64 `json:"nearestStormDistance"`
+		Icon                 string  `json:"icon"`
+		Summary              string  `json:"summary"`
+		Time                 int64   `json:"time"`
+		ApparentTemp         float64 `json:"apparentTemperature"`
+		DewPoint             float64 `json:"dewPoint"`
+		Humidity             float64 `json:"humidity"`
+		WindSpeed            float64 `json:"windSpeed"`
+		WindBearing          float64 `json:"windBearing"`
+		Visibility           float64 `json:"visibility"`
+		CloudCover           float64 `json:"cloudCover"`
+		Pressure             float64 `json:"pressure"`
+	}
+
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	c.Temp = s.Temp
+	c.PrecipProbability = s.PrecipProbability
+	c.PrecipIntensity = s.PrecipIntensity
+	c.NearestStormBearing = s.NearestStormBearing
+	c.NearestStormDistance = s.NearestStormDistance
+	c.Icon = s.Icon
+	c.Summary = s.Summary
+	c.Time = time.Unix(s.Time, 0)
+	c.ApparentTemp = s.ApparentTemp
+	c.DewPoint = s.DewPoint
+	c.Humidity = s.Humidity
+	c.WindSpeed = s.WindSpeed
+	c.WindBearing = s.WindBearing
+	c.Visibility = s.Visibility
+	c.CloudCover = s.CloudCover
+	c.Pressure = s.Pressure
+	return nil
 }
 
 type Hourly struct {
-	Time              Time    `json:"time"`
-	Summary           string  `json:"summary"`
-	Icon              string  `json:"icon"`
-	Temp              float64 `json:"temperature"`
-	ApparentTemp      float64 `json:"apparentTemperature"`
-	WindSpeed         float64 `json:"windSpeed"`
-	WindBearing       float64 `json:"windBearing"`
-	Pressure          float64 `json:"pressure"`
-	Humidity          float64 `json:"humidity"`
-	PrecipIntensity   float64 `json:"precipIntensity"`
-	PrecipProbability float64 `json:"precipProbability"`
-	DewPoint          float64 `json:"dewPoint"`
-	Visibility        float64 `json:"visibility"`
-	CloudCover        float64 `json:"cloudCover"`
+	Time              time.Time
+	Summary           string
+	Icon              string
+	Temp              float64
+	ApparentTemp      float64
+	WindSpeed         float64
+	WindBearing       float64
+	Pressure          float64
+	Humidity          float64
+	PrecipIntensity   float64
+	PrecipProbability float64
+	DewPoint          float64
+	Visibility        float64
+	CloudCover        float64
+}
+
+func (h *Hourly) UnmarshalJSON(b []byte) error {
+	var s struct {
+		Time              int64   `json:"time"`
+		Summary           string  `json:"summary"`
+		Icon              string  `json:"icon"`
+		Temp              float64 `json:"temperature"`
+		ApparentTemp      float64 `json:"apparentTemperature"`
+		WindSpeed         float64 `json:"windSpeed"`
+		WindBearing       float64 `json:"windBearing"`
+		Pressure          float64 `json:"pressure"`
+		Humidity          float64 `json:"humidity"`
+		PrecipIntensity   float64 `json:"precipIntensity"`
+		PrecipProbability float64 `json:"precipProbability"`
+		DewPoint          float64 `json:"dewPoint"`
+		Visibility        float64 `json:"visibility"`
+		CloudCover        float64 `json:"cloudCover"`
+	}
+
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	h.Time = time.Unix(s.Time, 0)
+	h.Summary = s.Summary
+	h.Icon = s.Icon
+	h.Temp = s.Temp
+	h.ApparentTemp = s.ApparentTemp
+	h.WindSpeed = s.WindSpeed
+	h.WindBearing = s.WindBearing
+	h.Pressure = s.Pressure
+	h.Humidity = s.Humidity
+	h.PrecipIntensity = s.PrecipIntensity
+	h.PrecipProbability = s.PrecipProbability
+	h.DewPoint = s.DewPoint
+	h.Visibility = s.Visibility
+	h.CloudCover = s.CloudCover
+	return nil
 }
 
 type Daily struct {
-	Pressure            float64 `json:"pressure"`
-	CloudCover          float64 `json:"cloudCover"`
-	Visibility          float64 `json:"visibility"`
-	WindBearing         float64 `json:"windBearing"`
-	WindSpeed           float64 `json:"windSpeed"`
-	Humidity            float64 `json:"humidity"`
-	DewPoint            float64 `json:"dewPoint"`
-	ApparentTemp        float64 `json:"apparentTemperature"`
-	PrecipIntensityMax  float64 `json:"precipIntensityMax"`
-	PrecipIntensity     float64 `json:"precipIntensity"`
-	MoonPhase           float64 `json:"moonPhase"`
-	SunsetTime          Time    `json:"sunsetTime"`
-	SunriseTime         Time    `json:"sunriseTime"`
-	Icon                string  `json:"icon"`
-	Summary             string  `json:"summary"`
-	Time                Time    `json:"time"`
-	PrecipProbability   float64 `json:"precipProbability"`
-	TempMin             float64 `json:"temperatureMin"`
-	TempMinTime         Time    `json:"temperatureMintime"`
-	TempMax             float64 `json:"temperatureMax"`
-	TempMaxTime         Time    `json:"temperatureMaxTime"`
-	ApparentTempMin     float64 `json:"apperentTemperatureMin"`
-	ApparentTempMinTime Time    `json:"apparentTemperatureMinTime"`
-	ApparentTempMax     float64 `json:"apparentTemperatureMax"`
+	Pressure            float64
+	CloudCover          float64
+	Visibility          float64
+	WindBearing         float64
+	WindSpeed           float64
+	Humidity            float64
+	DewPoint            float64
+	ApparentTemp        float64
+	PrecipIntensityMax  float64
+	PrecipIntensity     float64
+	MoonPhase           float64
+	SunsetTime          time.Time
+	SunriseTime         time.Time
+	Icon                string
+	Summary             string
+	Time                time.Time
+	PrecipProbability   float64
+	TempMin             float64
+	TempMinTime         time.Time
+	TempMax             float64
+	TempMaxTime         time.Time
+	ApparentTempMin     float64
+	ApparentTempMinTime time.Time
+	ApparentTempMax     float64
+}
+
+func (d *Daily) UnmarshalJSON(b []byte) error {
+	var s struct {
+		Pressure            float64 `json:"pressure"`
+		CloudCover          float64 `json:"cloudCover"`
+		Visibility          float64 `json:"visibility"`
+		WindBearing         float64 `json:"windBearing"`
+		WindSpeed           float64 `json:"windSpeed"`
+		Humidity            float64 `json:"humidity"`
+		DewPoint            float64 `json:"dewPoint"`
+		ApparentTemp        float64 `json:"apparentTemperature"`
+		PrecipIntensityMax  float64 `json:"precipIntensityMax"`
+		PrecipIntensity     float64 `json:"precipIntensity"`
+		MoonPhase           float64 `json:"moonPhase"`
+		SunsetTime          int64   `json:"sunsetTime"`
+		SunriseTime         int64   `json:"sunriseTime"`
+		Icon                string  `json:"icon"`
+		Summary             string  `json:"summary"`
+		Time                int64   `json:"time"`
+		PrecipProbability   float64 `json:"precipProbability"`
+		TempMin             float64 `json:"temperatureMin"`
+		TempMinTime         int64   `json:"temperatureMintime"`
+		TempMax             float64 `json:"temperatureMax"`
+		TempMaxTime         int64   `json:"temperatureMaxTime"`
+		ApparentTempMin     float64 `json:"apperentTemperatureMin"`
+		ApparentTempMinTime int64   `json:"apparentTemperatureMinTime"`
+		ApparentTempMax     float64 `json:"apparentTemperatureMax"`
+	}
+
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	d.Pressure = s.Pressure
+	d.CloudCover = s.CloudCover
+	d.Visibility = s.Visibility
+	d.WindBearing = s.WindBearing
+	d.WindSpeed = s.WindSpeed
+	d.Humidity = s.Humidity
+	d.DewPoint = s.DewPoint
+	d.ApparentTemp = s.ApparentTemp
+	d.PrecipIntensityMax = s.PrecipIntensityMax
+	d.PrecipIntensity = s.PrecipIntensity
+	d.MoonPhase = s.MoonPhase
+	d.SunsetTime = time.Unix(s.SunsetTime, 0)
+	d.SunriseTime = time.Unix(s.SunriseTime, 0)
+	d.Icon = s.Icon
+	d.Summary = s.Summary
+	d.Time = time.Unix(s.Time, 0)
+	d.PrecipProbability = s.PrecipProbability
+	d.TempMin = s.TempMin
+	d.TempMinTime = time.Unix(s.TempMinTime, 0)
+	d.TempMax = s.TempMax
+	d.TempMaxTime = time.Unix(s.TempMaxTime, 0)
+	d.ApparentTempMin = s.ApparentTempMin
+	d.ApparentTempMinTime = time.Unix(s.ApparentTempMinTime, 0)
+	d.ApparentTempMax = s.ApparentTempMax
+	return nil
 }
 
 type Report struct {
