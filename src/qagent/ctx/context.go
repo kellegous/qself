@@ -1,6 +1,7 @@
 package ctx
 
 import (
+	"qagent/forecast"
 	"qagent/heart"
 	"qagent/store"
 	"qagent/temp"
@@ -19,6 +20,7 @@ type Context struct {
 	lastHeartAt time.Time
 	lastTemp    uint16
 	lastTempAt  time.Time
+	Forecast    forecast.Service
 }
 
 type Stats struct {
@@ -109,7 +111,7 @@ func (c *Context) Store() *store.Store {
 	return c.store
 }
 
-func Make(ctx *Context, dbpath string) error {
+func Make(ctx *Context, dbpath string, area *forecast.Area) error {
 	s, err := store.Open(dbpath)
 	if err != nil {
 		return err
@@ -117,5 +119,6 @@ func Make(ctx *Context, dbpath string) error {
 
 	ctx.store = s
 	ctx.heartStats = heart.NewStats(16, 100)
+	ctx.Forecast = forecast.NewService(area, 15*time.Minute)
 	return nil
 }

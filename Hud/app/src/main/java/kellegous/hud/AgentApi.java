@@ -1,5 +1,6 @@
 package kellegous.hud;
 
+import android.text.format.Time;
 import android.util.JsonReader;
 import android.util.Log;
 
@@ -23,6 +24,19 @@ import java.util.List;
 public class AgentApi {
     private static final String TAG = AgentApi.class.getSimpleName();
 
+    private static final Time timeZero = emptyTime();
+
+    private static Time emptyTime() {
+        Time t = new Time();
+        t.set(0);
+        return t;
+    }
+
+    private static void parseTime(String s, Time time) {
+        time.parse3339(s);
+        time.switchTimezone("America/New_York");
+    }
+
     private static JsonReader fetchJson(String url) throws IOException {
         HttpResponse res = new DefaultHttpClient().execute(new HttpGet(url));
         return new JsonReader(new InputStreamReader(res.getEntity().getContent(), "UTF-8"));
@@ -30,13 +44,13 @@ public class AgentApi {
 
     public static class Hourly {
         public static class Hrt {
-            private Date mDate;
+            private Time mTime = new Time(timeZero);
             private double mHr;
             private double mHrv;
             private int mCount;
 
-            public Date date() {
-                return mDate;
+            public Time time() {
+                return mTime;
             }
 
             public double rate() {
@@ -64,8 +78,7 @@ public class AgentApi {
                 while (r.hasNext()) {
                     String name = r.nextName();
                     if (name.equals("Time")) {
-                        r.nextString();
-                        hrt.mDate = new Date(); // TODO(knorton): Fix
+                        parseTime(r.nextString(), hrt.mTime);
                     } else if (name.equals("Hr")) {
                         hrt.mHr = r.nextDouble();
                     } else if (name.equals("Hrv")) {
@@ -82,12 +95,12 @@ public class AgentApi {
         }
 
         public static class Tmp {
-            private Date mDate;
+            private Time mTime = new Time(timeZero);
             private double mTmp;
             private int mCount;
 
-            public Date date() {
-                return mDate;
+            public Time time() {
+                return mTime;
             }
 
             public double temp() {
@@ -107,8 +120,7 @@ public class AgentApi {
                 while (r.hasNext()) {
                     String name = r.nextName();
                     if (name.equals("Time")) {
-                        r.nextString();
-                        tmp.mDate = new Date(); // TODO(knorton): Fix
+                        parseTime(r.nextString(), tmp.mTime);
                     } else if (name.equals("Temp")) {
                         tmp.mTmp = r.nextDouble();
                     } else if (name.equals("Count")) {

@@ -13,6 +13,7 @@ import (
 	"os"
 	"qagent/api"
 	"qagent/ctx"
+	"qagent/forecast"
 	"time"
 )
 
@@ -27,6 +28,11 @@ type Config struct {
 	AgentAddr string `yaml:"AgentAddr"`
 	HttpAddr  string `yaml:"HttpAddr"`
 	Db        string `yaml:"Db"`
+	Forecast  struct {
+		ApiKey string  `yaml:"ApiKey"`
+		Lat    float64 `yaml:"Lat"`
+		Lon    float64 `yaml:"Lon"`
+	} `yaml:"Forecast"`
 }
 
 func (c *Config) Write(filename string) error {
@@ -188,7 +194,11 @@ func main() {
 	}
 
 	var fe Fe
-	if err := ctx.Make(&fe.Context, cfg.Db); err != nil {
+	if err := ctx.Make(&fe.Context, cfg.Db, &forecast.Area{
+		Lat:    cfg.Forecast.Lat,
+		Lon:    cfg.Forecast.Lon,
+		ApiKey: cfg.Forecast.ApiKey,
+	}); err != nil {
 		log.Panic(err)
 	}
 

@@ -9,12 +9,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical">
+
         <TextView
             android:id="@+id/metric_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="67"
-            android:textSize="120sp"
+            android:textSize="96sp"
             android:textColor="#666"
             android:paddingTop="16dp"
             android:paddingLeft="16dp"
@@ -26,9 +27,9 @@
             android:layout_height="wrap_content"
             android:textColor="#999"
             android:textSize="24sp"
+            android:text="label"
             android:paddingLeft="24dp"
             android:paddingRight="16dp"
-            android:paddingBottom="32dp"
             android:layout_marginTop="-26dp"
             android:textAllCaps="true"/>
     </LinearLayout>
@@ -37,9 +38,7 @@
         android:id="@+id/metric_graph"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
-        android:paddingTop="32dp"
-        android:paddingLeft="16dp"
         android:paddingRight="16dp"
-        app:barColor="#eee"/>
+        app:barColor="#ccc"/>
 
 </LinearLayout>

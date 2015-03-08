@@ -179,6 +179,17 @@ func apiHourlyAll(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	Must(WriteJson(w, &res))
 }
 
+func apiForecast(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	rep := c.Forecast.Latest()
+	if rep == nil {
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable),
+			http.StatusServiceUnavailable)
+		return
+	}
+
+	Must(WriteJson(w, rep))
+}
+
 func Setup(m *http.ServeMux, c *ctx.Context) {
 	m.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		var res ctx.Stats
@@ -196,5 +207,9 @@ func Setup(m *http.ServeMux, c *ctx.Context) {
 
 	m.HandleFunc("/api/hourly/all", func(w http.ResponseWriter, r *http.Request) {
 		apiHourlyAll(c, w, r)
+	})
+
+	m.HandleFunc("/api/forecast", func(w http.ResponseWriter, r *http.Request) {
+		apiForecast(c, w, r)
 	})
 }

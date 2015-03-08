@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -16,6 +17,8 @@ import android.view.ViewGroup;
 import java.util.List;
 
 public class MainFragment extends Fragment implements ServiceConnection, UpdateService.Listener {
+    private static final String TAG = MainFragment.class.getSimpleName();
+
     private UpdateService mService;
 
     private MetricHistoryView mHrtView;
@@ -60,6 +63,11 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
         return view;
     }
 
+    private void updateSizes() {
+        View decor = getActivity().getWindow().getDecorView();
+        int h = decor.getHeight();
+    }
+
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
         mService = ((UpdateService.Binder)service).getService();
@@ -78,24 +86,26 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
 
     private void updateHrtData(List<AgentApi.Hourly.Hrt> vals) {
         int n = vals.size();
+        String[] labels = new String[n];
         double[] hrt = new double[n];
         double[] hrv = new double[n];
 
         for (int i = 0; i < n; i++) {
             AgentApi.Hourly.Hrt h = vals.get(i);
-            hrt[i] = h.rate();
-            hrv[i] = h.variability();
+            hrt[n - i - 1] = h.rate();
+            hrv[n - i - 1] = h.variability();
+            labels[n - i - 1] = h.time().format("%H");
         }
 
-        mHrtView.setData(hrt);
-        mHrvView.setData(hrv);
+        mHrtView.setData(labels, hrt);
+        mHrvView.setData(labels, hrv);
     }
 
     private  void updateTmpData(List<AgentApi.Hourly.Tmp> vals) {
         int n = vals.size();
         double[] tmp = new double[n];
         for (int i = 0; i < n; i++) {
-            tmp[i] = vals.get(i).temp();
+            tmp[n - i - 1] = vals.get(i).temp();
         }
 
         // TODO(knorton): Update the temperature view
