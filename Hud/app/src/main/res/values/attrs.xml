@@ -9,4 +9,9 @@
     <declare-styleable name="MetricHistoryView">
         <attr name="label" format="string"/>
     </declare-styleable>
+
+    <declare-styleable name="NamedStatusView">
+        <attr name="statusLabel" format="string"/>
+        <attr name="statusValue" format="string"/>
+    </declare-styleable>
 </resources>

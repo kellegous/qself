@@ -21,8 +21,9 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
 
     private UpdateService mService;
 
-    private MetricHistoryView mHrtView;
-    private MetricHistoryView mHrvView;
+    private HeartDataView mHeartDataView;
+
+    private WeatherDataView mWeatherDataView;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -57,15 +58,10 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
             }
         });
 
-        mHrtView = (MetricHistoryView)view.findViewById(R.id.metric_history_hrt);
-        mHrvView = (MetricHistoryView)view.findViewById(R.id.metric_history_hrv);
+        mHeartDataView = (HeartDataView) view.findViewById(R.id.heart_data_view);
+        mWeatherDataView = (WeatherDataView) view.findViewById(R.id.weather_data_view);
 
         return view;
-    }
-
-    private void updateSizes() {
-        View decor = getActivity().getWindow().getDecorView();
-        int h = decor.getHeight();
     }
 
     @Override
@@ -80,25 +76,10 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
 
     @Override
     public void statusDidUpdate() {
-        mHrtView.setValue(mService.getHrt());
-        mHrvView.setValue(mService.getHrv());
-    }
-
-    private void updateHrtData(List<AgentApi.Hourly.Hrt> vals) {
-        int n = vals.size();
-        String[] labels = new String[n];
-        double[] hrt = new double[n];
-        double[] hrv = new double[n];
-
-        for (int i = 0; i < n; i++) {
-            AgentApi.Hourly.Hrt h = vals.get(i);
-            hrt[n - i - 1] = h.rate();
-            hrv[n - i - 1] = h.variability();
-            labels[n - i - 1] = h.time().format("%H");
-        }
-
-        mHrtView.setData(labels, hrt);
-        mHrvView.setData(labels, hrv);
+        mHeartDataView.updateCurrentData(mService.getHrt(), mService.getHrv());
+        mWeatherDataView.setCurrentTemperature(
+                mService.getTmp(),
+                (int)Math.round(mService.getWeather().temp()));
     }
 
     private  void updateTmpData(List<AgentApi.Hourly.Tmp> vals) {
@@ -114,7 +95,7 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
     @Override
     public void hourlyDidUpdate() {
         AgentApi.Hourly hourly = mService.getHourly();
-        updateHrtData(hourly.hrt());
+        mHeartDataView.updateHourlyData(hourly.hrt());
         updateTmpData(hourly.tmp());
     }
 }

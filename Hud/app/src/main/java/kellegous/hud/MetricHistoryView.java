@@ -9,14 +9,14 @@ import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class MetricHistoryView extends LinearLayout {
     private static final String TAG = MetricHistoryView.class.getSimpleName();
 
-    private TextView mMetricValue;
-    private TextView mMetricLabel;
+    private NamedStatusView mStatusView;
     private MetricHistoryGraph mMetricGraph;
 
     public MetricHistoryView(Context context) {
@@ -37,10 +37,8 @@ public class MetricHistoryView extends LinearLayout {
     }
 
     private void init(Context context) {
-        LayoutInflater.from(context).inflate(R.layout.view_metric_history, this, true);
-
-        mMetricValue = (TextView)findViewById(R.id.metric_value);
-        mMetricLabel = (TextView)findViewById(R.id.metric_label);
+        View view = LayoutInflater.from(context).inflate(R.layout.view_metric_history, this, true);
+        mStatusView = (NamedStatusView)findViewById(R.id.metric_status_view);
         mMetricGraph = (MetricHistoryGraph)findViewById(R.id.metric_graph);
     }
 
@@ -48,23 +46,15 @@ public class MetricHistoryView extends LinearLayout {
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         super.onLayout(changed, l, t, r, b);
 
-        int textHeight = getTextHeight();
-
-        int padding = (mMetricValue.getHeight() - textHeight) / 2;
+        Rect valueRect = mStatusView.getValueBounds();
 
         mMetricGraph.setPadding(
                 mMetricGraph.getPaddingLeft(),
-                padding + mMetricValue.getPaddingTop(),
+                valueRect.top,
                 mMetricGraph.getPaddingRight(),
                 0);
 
-        mMetricGraph.setGraphHeight(textHeight);
-    }
-
-    private int getTextHeight() {
-        Rect rect = new Rect();
-        mMetricValue.getPaint().getTextBounds("00", 0, 1, rect);
-        return rect.height();
+        mMetricGraph.setGraphHeight(valueRect.height());
     }
 
     private void applyAttrs(Context context, AttributeSet attrs) {
@@ -79,15 +69,18 @@ public class MetricHistoryView extends LinearLayout {
     }
 
     public void setValue(int value) {
-        mMetricValue.setText(Integer.toString(value));
+        mStatusView.setValue(Integer.toString(value));
+        requestLayout();
     }
 
     public void setLabel(String text) {
-        mMetricLabel.setText(text);
+        mStatusView.setLabel(text);
+        requestLayout();
     }
 
     public void setLabel(int refid) {
-        mMetricLabel.setText(refid);
+        setLabel(getResources().getString(refid));
+        requestLayout();
     }
 
     public void setData(String[] labels, double[] values) {

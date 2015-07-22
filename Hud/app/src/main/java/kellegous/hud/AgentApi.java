@@ -232,8 +232,44 @@ public class AgentApi {
             }
         }
 
+        public static class Weather {
+            private double mTemp;
+            private String mIcon;
+            private String mSummary;
+
+            public double temp() {
+                return mTemp;
+            }
+
+            public String icon() {
+                return mIcon;
+            }
+
+            public String summary() {
+                return mSummary;
+            }
+
+            private static void parse(JsonReader r, Status.Weather w) throws IOException {
+                r.beginObject();
+                while (r.hasNext()) {
+                    String name = r.nextName();
+                    if (name.equals("Temp")) {
+                        w.mTemp = r.nextDouble();
+                    } else if (name.equals("Icon")) {
+                        w.mIcon = r.nextString();
+                    } else if (name.equals("Summary")) {
+                        w.mSummary = r.nextString();
+                    } else {
+                        r.skipValue();
+                    }
+                }
+                r.endObject();
+            }
+        }
+
         private final Hrt mHrt = new Hrt();
         private final Tmp mTmp = new Tmp();
+        private final Weather mWeather = new Weather();
 
         public Hrt hrt() {
             return mHrt;
@@ -241,6 +277,10 @@ public class AgentApi {
 
         public Tmp tmp() {
             return mTmp;
+        }
+
+        public Weather weather() {
+            return mWeather;
         }
 
         private static Status parse(JsonReader r, Status status) throws IOException {
@@ -251,6 +291,8 @@ public class AgentApi {
                     Hrt.parse(r, status.mHrt);
                 } else if (name.equals("Tmp")) {
                     Tmp.parse(r, status.mTmp);
+                } else if (name.equals("Weather")) {
+                    Weather.parse(r, status.mWeather);
                 } else {
                     r.skipValue();
                 }

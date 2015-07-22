@@ -1,21 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="horizontal">
+    android:layout_height="match_parent">
 
     <kellegous.hud.NamedStatusView
-        android:id="@+id/metric_status_view"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent" />
-
-    <kellegous.hud.MetricHistoryGraph
-        android:id="@+id/metric_graph"
+        android:id="@+id/weather_current_temp_int_view"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
-        android:paddingRight="16dp"
-        app:realBarColor="#ccc"
-        app:fakeBarColor="#eee"/>
+        app:statusLabel="indoor"/>
+
+    <kellegous.hud.NamedStatusView
+        android:id="@+id/weather_current_temp_ext_view"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        app:statusLabel="outdoor"/>
 
 </LinearLayout>

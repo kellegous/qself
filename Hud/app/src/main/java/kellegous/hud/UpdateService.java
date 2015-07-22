@@ -196,7 +196,11 @@ public class UpdateService extends Service {
     }
 
     public int getTmp() {
-        return (int)mStatus.tmp().temp();
+        return (int)Math.round(mStatus.tmp().temp());
+    }
+
+    public AgentApi.Status.Weather getWeather() {
+        return mStatus.weather();
     }
 
     public AgentApi.Hourly getHourly() {

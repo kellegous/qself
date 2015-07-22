@@ -8,16 +8,18 @@ import (
 	"time"
 )
 
-const baseUrl = "https://api.forecast.io/forecast"
+const baseURL = "https://api.forecast.io/forecast"
 
+// Area ...
 type Area struct {
 	Lat    float64
 	Lon    float64
 	ApiKey string
 }
 
+// Get ...
 func (a *Area) Get() (*Report, error) {
-	res, err := http.Get(fmt.Sprintf("%s/%s/%0.6f,%0.6f", baseUrl, a.ApiKey, a.Lat, a.Lon))
+	res, err := http.Get(fmt.Sprintf("%s/%s/%0.6f,%0.6f", baseURL, a.ApiKey, a.Lat, a.Lon))
 	if err != nil {
 		return nil, err
 	}
@@ -31,6 +33,7 @@ func (a *Area) Get() (*Report, error) {
 	return &r, nil
 }
 
+// Currently ...
 type Currently struct {
 	Temp                 float64
 	PrecipProbability    float64
@@ -50,6 +53,7 @@ type Currently struct {
 	Pressure             float64
 }
 
+// UnmarshalJSON ...
 func (c *Currently) UnmarshalJSON(b []byte) error {
 	var s struct {
 		Temp                 float64 `json:"temperature"`
@@ -93,6 +97,7 @@ func (c *Currently) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Hourly ...
 type Hourly struct {
 	Time              time.Time
 	Summary           string
@@ -110,6 +115,7 @@ type Hourly struct {
 	CloudCover        float64
 }
 
+// UnmarshalJSON ...
 func (h *Hourly) UnmarshalJSON(b []byte) error {
 	var s struct {
 		Time              int64   `json:"time"`
@@ -149,6 +155,7 @@ func (h *Hourly) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Daily ...
 type Daily struct {
 	Pressure            float64
 	CloudCover          float64
@@ -176,6 +183,7 @@ type Daily struct {
 	ApparentTempMax     float64
 }
 
+// UnmarshalJSON ...
 func (d *Daily) UnmarshalJSON(b []byte) error {
 	var s struct {
 		Pressure            float64 `json:"pressure"`
@@ -235,8 +243,9 @@ func (d *Daily) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Report ...
 type Report struct {
-	Currently Currently
+	Currently *Currently
 	Hourly    []Hourly
 	Daily     []Daily
 }
@@ -247,10 +256,12 @@ type service struct {
 	lck  sync.RWMutex
 }
 
+// Service ...
 type Service interface {
 	Latest() *Report
 }
 
+// NewService ...
 func NewService(a *Area, ttl time.Duration) Service {
 	s := &service{
 		Area: a,
@@ -278,9 +289,10 @@ func (s *service) Latest() *Report {
 	return s.r
 }
 
+// UnmarshalJSON ...
 func (r *Report) UnmarshalJSON(b []byte) error {
 	var raw struct {
-		Currently Currently `json:"currently"`
+		Currently *Currently `json:"currently"`
 		Hourly    struct {
 			Data []Hourly `json:"data"`
 		}

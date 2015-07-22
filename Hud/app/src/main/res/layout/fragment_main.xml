@@ -6,69 +6,41 @@
     android:orientation="vertical"
     android:background="#ffffff">
 
-
-    <LinearLayout
+    <kellegous.hud.HeartDataView
+        android:id="@+id/heart_data_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:orientation="horizontal"
-        android:layout_weight="1"
-        android:paddingRight="32dp">
-
-        <ImageView
-            android:layout_width="36dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginLeft="32dp"
-            android:layout_marginRight="16dp"
-            android:src="@drawable/heart_stroke"/>
-
-        <kellegous.hud.MetricHistoryView
-            android:id="@+id/metric_history_hrt"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            app:label="@string/heart_rate_metric_label"/>
-
-        <kellegous.hud.MetricHistoryView
-            android:id="@+id/metric_history_hrv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            app:label="@string/heart_vary_metric_label"/>
-
-    </LinearLayout>
+        android:layout_weight="1" />
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#666"/>
 
-    <LinearLayout
+
+    <kellegous.hud.WeatherDataView
+        android:id="@+id/weather_data_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:orientation="horizontal"
-        android:layout_weight="1">
-
-        <ImageView
-            android:layout_width="36dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginLeft="32dp"
-            android:layout_marginRight="16dp"
-            android:src="@drawable/cloud_stroke"/>
-    </LinearLayout>
+        android:layout_weight="1"/>
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#666"/>
 
-    <LinearLayout
+    <kellegous.hud.ToyDataView
+        android:id="@+id/toy_data_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:orientation="horizontal"
-        android:layout_weight="1">
-    </LinearLayout>
+        android:layout_weight="1"/>
+
+    <!--<LinearLayout-->
+        <!--android:layout_width="match_parent"-->
+        <!--android:layout_height="0dp"-->
+        <!--android:orientation="horizontal"-->
+        <!--android:layout_weight="1">-->
+    <!--</LinearLayout>-->
 
     <View
         android:layout_width="match_parent"

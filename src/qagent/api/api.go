@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"qagent/ctx"
+	"qagent/forecast"
 	"qagent/heart"
 	"qagent/store"
 	"qagent/temp"
@@ -190,10 +191,21 @@ func apiForecast(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	Must(WriteJson(w, rep))
 }
 
+// Setup ...
 func Setup(m *http.ServeMux, c *ctx.Context) {
 	m.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
-		var res ctx.Stats
-		c.StatsFor(&res)
+		var res struct {
+			ctx.Stats
+			Weather *forecast.Currently `json:",omitempty"`
+		}
+
+		c.StatsFor(&res.Stats)
+
+		f := c.Forecast.Latest()
+		if f != nil {
+			res.Weather = f.Currently
+		}
+
 		Must(WriteJson(w, &res))
 	})
 
