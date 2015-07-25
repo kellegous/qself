@@ -1,0 +1,101 @@
+package kellegous.hud.kellegous.hud.api;
+
+import android.text.format.Time;
+import android.util.JsonReader;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.DefaultHttpClient;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.List;
+
+/**
+ * A simple API client that provides access to all accumulated dashboard data.
+ */
+public class Api {
+    private static class ClientImpl implements ForSensors, ForWeather, Client {
+
+        private final String mOrigin;
+
+        private ClientImpl(String origin) {
+            mOrigin = origin;
+        }
+
+        @Override
+        public Sensors.Status getStatus() throws IOException{
+            return Sensors.getStatus(mOrigin);
+        }
+
+        @Override
+        public Weather.Conditions getCurrentConditions() throws IOException {
+            return Weather.getCurrentConditions(mOrigin);
+        }
+
+        @Override
+        public List<Weather.Conditions> getHourlyForecast() throws IOException{
+            return Weather.getHourlyForecast(mOrigin);
+        }
+
+        @Override
+        public Sensors.HourlySummary getHourlySummary(int start, int limit) throws IOException{
+            return Sensors.getHourlySummary(mOrigin, start, limit);
+        }
+
+
+        @Override
+        public ForSensors sensors() {
+            return this;
+        }
+
+        @Override
+        public ForWeather weather() {
+            return this;
+        }
+    }
+
+    /**
+     * The primary access interface for data APIs.
+     */
+    public interface Client {
+        ForSensors sensors();
+        ForWeather weather();
+    }
+
+    public interface ForSensors {
+        Sensors.Status getStatus() throws IOException;
+        Sensors.HourlySummary getHourlySummary(int start, int limit) throws IOException;
+    }
+
+    public interface ForWeather {
+        Weather.Conditions getCurrentConditions() throws IOException;
+        List<Weather.Conditions> getHourlyForecast() throws IOException;
+    }
+
+    private Api() {
+    }
+
+    public static Client create(String origin) {
+        return new ClientImpl(origin);
+    }
+
+    static JsonReader fetchJson(String url) throws IOException {
+        HttpResponse res = new DefaultHttpClient().execute(new HttpGet(url));
+        return new JsonReader(new InputStreamReader(res.getEntity().getContent(), "UTF-8"));
+    }
+
+    static final Time timeZero = emptyTime();
+
+    private static Time emptyTime() {
+        Time t = new Time();
+        t.set(0);
+        return t;
+    }
+
+    static void parseTime(String s, Time time) {
+        time.parse3339(s);
+        time.switchTimezone("America/New_York");
+    }
+
+}

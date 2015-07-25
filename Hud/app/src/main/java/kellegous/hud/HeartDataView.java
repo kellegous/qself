@@ -9,6 +9,8 @@ import android.widget.TextView;
 
 import java.util.List;
 
+import kellegous.hud.kellegous.hud.api.Sensors;
+
 public class HeartDataView extends DataView {
     private MetricHistoryView mHrtView;
     private MetricHistoryView mHrvView;
@@ -44,19 +46,19 @@ public class HeartDataView extends DataView {
         return view;
     }
 
-    public void updateCurrentData(int hrt, int hrv) {
-        mHrtView.setValue(hrt);
-        mHrvView.setValue(hrv);
+    public void updateCurrentData(double hrt, double hrv) {
+        mHrtView.setValue((int)Math.round(hrt));
+        mHrvView.setValue((int)Math.round(hrv));
     }
 
-    public void updateHourlyData(List<AgentApi.Hourly.Hrt> vals) {
+    public void updateHourlyData(List<Sensors.HourlySummary.Hrt> vals) {
         int n = vals.size();
         String[] labels = new String[n];
         double[] hrt = new double[n];
         double[] hrv = new double[n];
 
         for (int i = 0; i < n; i++) {
-            AgentApi.Hourly.Hrt h = vals.get(i);
+            Sensors.HourlySummary.Hrt h = vals.get(i);
             hrt[n - i - 1] = h.rate();
             hrv[n - i - 1] = h.variability();
             labels[n - i - 1] = h.time().format("%H");

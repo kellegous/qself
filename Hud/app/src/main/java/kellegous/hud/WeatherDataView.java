@@ -12,7 +12,11 @@ import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import kellegous.hud.kellegous.hud.api.Weather;
 
 public class WeatherDataView extends DataView {
     private static class ImplView extends View {
@@ -27,11 +31,18 @@ public class WeatherDataView extends DataView {
         private static final float TITLE_TEXT_SIZE = 18f;
 
         private static final int ICON_COLOR = 0xff999999;
-        private static final float ICON_TEXT_SIZE = 96f;
+        private static final float ICON_LARGE_TEXT_SIZE = 96f;
+        private static final float ICON_SMALL_TEXT_SIZE = 48f;
+
+        private static final int FORECAST_TEMP_COLOR = 0xff999999;
+        private static final float FORECAST_TEMP_TEXT_SIZE = 24f;
+        private static final int FORECAST_PADDING = 8;
 
         private static final int VIEW_PADDING = 16;
         private static final int VALUE_WIDTH = 168;
         private static final int ICON_WIDTH = VALUE_WIDTH;
+
+        private static final int FORECAST_NUMBER_OF_HOURS = 8;
 
         private static final boolean DEBUG = false;
 
@@ -40,11 +51,14 @@ public class WeatherDataView extends DataView {
         private String mOutdoorFeels = "";
         private String mOutdoorIcon = toIconString("clear-day");
         private String mOutdoorSummary = "";
+        private List<Weather.Conditions> mHourlyForecast = new ArrayList<>();
 
         private Paint mValuePaint;
         private Paint mLabelPaint;
         private Paint mTitlePaint;
-        private Paint mIconPaint;
+        private Paint mLargeIconPaint;
+        private Paint mSmallIconPaint;
+        private Paint mForecastTempPaint;
 
         private Paint mDebugFillPaint;
         private Paint mDebugStrokePaint;
@@ -53,6 +67,7 @@ public class WeatherDataView extends DataView {
         private float mValueBaseline;
         private float mLabelBaseline;
         private float mIconBaseline;
+        private float mForecastTempBaseline;
 
         public ImplView(Context context) {
             super(context);
@@ -95,19 +110,27 @@ public class WeatherDataView extends DataView {
             mTitlePaint.setTextSize(TITLE_TEXT_SIZE);
 
             Typeface weather  = Typefaces.load(context, Typefaces.Weather);
-            mIconPaint = new Paint(0);
-            mIconPaint.setColor(ICON_COLOR);
-            mIconPaint.setTypeface(weather);
-            mIconPaint.setTextSize(ICON_TEXT_SIZE);
+            mLargeIconPaint = new Paint(0);
+            mLargeIconPaint.setColor(ICON_COLOR);
+            mLargeIconPaint.setTypeface(weather);
+            mLargeIconPaint.setTextSize(ICON_LARGE_TEXT_SIZE);
 
-            if (DEBUG) {
-                mDebugFillPaint = new Paint(0);
-                mDebugFillPaint.setColor(0x66ff0000);
+            mSmallIconPaint = new Paint(0);
+            mSmallIconPaint.setColor(ICON_COLOR);
+            mSmallIconPaint.setTypeface(weather);
+            mSmallIconPaint.setTextSize(ICON_SMALL_TEXT_SIZE);
 
-                mDebugStrokePaint = new Paint(0);
-                mDebugStrokePaint.setColor(0x66ff0000);
-                mDebugStrokePaint.setStyle(Paint.Style.STROKE);
-            }
+            mForecastTempPaint = new Paint(0);
+            mForecastTempPaint.setColor(FORECAST_TEMP_COLOR);
+            mForecastTempPaint.setTypeface(roboCondLight);
+            mForecastTempPaint.setTextSize(FORECAST_TEMP_TEXT_SIZE);
+
+            mDebugFillPaint = new Paint(0);
+            mDebugFillPaint.setColor(0x11ffff00);
+
+            mDebugStrokePaint = new Paint(0);
+            mDebugStrokePaint.setColor(0x66ff0000);
+            mDebugStrokePaint.setStyle(Paint.Style.STROKE);
         }
 
         private void drawMetric(Canvas canvas, String label, String value, float x) {
@@ -130,11 +153,65 @@ public class WeatherDataView extends DataView {
             Paint.FontMetrics valueMetrics = mValuePaint.getFontMetrics();
             mValueBaseline = (bottom - top)/2f + valueMetrics.bottom;
 
-            Paint.FontMetrics iconMetrics = mIconPaint.getFontMetrics();
+            Paint.FontMetrics iconMetrics = mLargeIconPaint.getFontMetrics();
             mIconBaseline = mValueBaseline - iconMetrics.descent/2;
 
             Paint.FontMetrics labelMetrics = mLabelPaint.getFontMetrics();
             mLabelBaseline = mValueBaseline - labelMetrics.top + Dimens.dpToPx(resources, LABEL_MARGIN_TOP);
+
+            mValuePaint.getTextBounds("7", 0, 1, rect);
+            int valueHeight = rect.height();
+            mForecastTempPaint.getTextBounds("7", 0, 1, rect);
+            mForecastTempBaseline = mValueBaseline - valueHeight + rect.height();
+        }
+
+        private void drawForecast(Canvas canvas, float x) {
+            Resources resources = getResources();
+
+            float padding = Dimens.dpToPx(resources, FORECAST_PADDING);
+
+            float width = getWidth() - x - Dimens.dpToPx(resources, VIEW_PADDING);
+            float dx = width / FORECAST_NUMBER_OF_HOURS;
+
+            int n = Math.min(FORECAST_NUMBER_OF_HOURS, mHourlyForecast.size());
+
+            Rect rect = new Rect();
+
+            for (int i = 0; i < n; i++) {
+                Weather.Conditions conditions = mHourlyForecast.get(i);
+
+                float xa = x + dx * i + padding;
+                float xb = x + dx * (i+1);
+
+                if (DEBUG) {
+                    canvas.drawRect(xa, 0, xb, getHeight(), mDebugFillPaint);
+                }
+
+                String time = conditions.time().format("%H:%M");
+                mLabelPaint.getTextBounds(time, 0, time.length(), rect);
+
+                canvas.drawText(
+                        time,
+                        xa + (dx - padding)/2f - rect.width()/2f,
+                        mLabelBaseline,
+                        mLabelPaint);
+
+                String icon = toIconString(conditions.icon());
+                mSmallIconPaint.getTextBounds(icon, 0, icon.length(), rect);
+                canvas.drawText(
+                        icon,
+                        xa + (dx - padding)/2f - rect.width()/2f,
+                        mIconBaseline + Dimens.dpToPx(resources, 4),
+                        mSmallIconPaint);
+
+                String temp = toDegreeString(conditions.temp());
+                mLabelPaint.getTextBounds(temp, 0, temp.length(), rect);
+                canvas.drawText(
+                        temp,
+                        xa + (dx - padding)/2f - rect.width()/2f,
+                        mForecastTempBaseline,
+                        mForecastTempPaint);
+            }
         }
 
         @Override
@@ -145,6 +222,7 @@ public class WeatherDataView extends DataView {
                 canvas.drawLine(0, mTitleBaseline, getWidth(), mTitleBaseline, mDebugStrokePaint);
                 canvas.drawLine(0, mValueBaseline, getWidth(), mValueBaseline, mDebugStrokePaint);
                 canvas.drawLine(0, mLabelBaseline, getWidth(), mLabelBaseline, mDebugStrokePaint);
+                canvas.drawLine(0, mForecastTempBaseline, getWidth(), mForecastTempBaseline, mDebugStrokePaint);
             }
 
             Resources resources = getResources();
@@ -173,12 +251,12 @@ public class WeatherDataView extends DataView {
                     mLabelPaint);
 
             // Outdoor icon
-            mIconPaint.getTextBounds(mOutdoorIcon, 0, mOutdoorIcon.length(), rect);
+            mLargeIconPaint.getTextBounds(mOutdoorIcon, 0, mOutdoorIcon.length(), rect);
             canvas.drawText(
                     mOutdoorIcon,
                     indoorEndsAt + ICON_WIDTH/2f - rect.width()/2f,
                     mIconBaseline,
-                    mIconPaint);
+                    mLargeIconPaint);
             canvas.drawText(mOutdoorSummary, indoorEndsAt + padding, mLabelBaseline, mLabelPaint);
 
             // Outdoor Temperature
@@ -190,10 +268,8 @@ public class WeatherDataView extends DataView {
                     resources.getString(R.string.weather_data_view_feels_label),
                     mOutdoorFeels,
                     indoorEndsAt + ICON_WIDTH + VALUE_WIDTH + padding);
-        }
 
-        private static String toDegreeString(int tmp) {
-            return String.format("%d\u00b0", tmp);
+            drawForecast(canvas, indoorEndsAt + ICON_WIDTH + 2*VALUE_WIDTH);
         }
     }
 
@@ -262,12 +338,21 @@ public class WeatherDataView extends DataView {
         }
     }
 
-    public void setCurrentStatus(int temp, AgentApi.Status.Weather weather) {
+    public void setIndoorTemperature(double temp) {
         mView.mIndoorTemp = toDegreeString(temp);
-        mView.mOutdoorTemp = toDegreeString(weather.temp());
-        mView.mOutdoorFeels = toDegreeString(weather.apparentTemp());
-         mView.mOutdoorIcon = toIconString(weather.icon());
-        mView.mOutdoorSummary = weather.summary().toUpperCase();
+        mView.invalidate();
+    }
+
+    public void setCurrentOutdoorConditions(Weather.Conditions conditions) {
+        mView.mOutdoorTemp = toDegreeString(conditions.temp());
+        mView.mOutdoorFeels = toDegreeString(conditions.apparentTemp());
+        mView.mOutdoorIcon = toIconString(conditions.icon());
+        mView.mOutdoorSummary = conditions.summary().toUpperCase();
+        mView.invalidate();
+    }
+
+    public void setHourlyForecast(List<Weather.Conditions> forecast) {
+        mView.mHourlyForecast = forecast;
         mView.invalidate();
     }
 }

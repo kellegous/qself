@@ -12,28 +12,38 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import kellegous.hud.kellegous.hud.api.Api;
+import kellegous.hud.kellegous.hud.api.Sensors;
+import kellegous.hud.kellegous.hud.api.Weather;
+
 /**
  * Created by knorton on 2/8/15.
  */
 public class UpdateService extends Service {
     private static final String TAG = UpdateService.class.getSimpleName();
 
-    private static final int POLLING_DELAY = 10000;
-    private static final int HOURLY_METRICS_INTERVAL = 5*1000*60;
+    private static final int BASE_INTERVAL = 10*1000;
+    private static final int WEATHER_CONDITIONS_INTERVAL = 30*1000;
+    private static final int WEATHER_FORECAST_INTERVAL = 5*1000*60;
+    private static final int SENSOR_HOURLY_SUMMARY_INTERVAL = 5*1000*60;
+
     private static final int HOURS_IN_HOURLY = 24;
 
-    private AgentApi.Status mStatus = new AgentApi.Status();
-    private AgentApi.Hourly mHourly = new AgentApi.Hourly();
-
     private String mOrigin = "http://flint.kellego.us:8077";
+
+    private Sensors.Status mSensorsStatus;
+
+    private Sensors.HourlySummary mSensorsHourlySummary;
+
+    private Weather.Conditions mWeatherConditions;
+
+    private List<Weather.Conditions> mWeatherHourlyForecast;
 
     private Handler mHandler;
 
     private List<Listener> mListeners = new ArrayList<>();
 
     private final Binder mBinder = new Binder();
-
-    private long mNextHistoryUpdateAt;
 
     private final Runnable mNeedsUpdateRunnable = new Runnable() {
         @Override
@@ -42,9 +52,18 @@ public class UpdateService extends Service {
         }
     };
 
+    // Used in UpdateTask
+    private Api.Client mClient = Api.create(mOrigin);
+    private long mNextWeatherConditionsUpdate;
+    private long mNextSensorHourlySummaryUpdate;
+    private long mNextWeatherForecastUpdate;
+
     public interface Listener {
-        void statusDidUpdate();
-        void hourlyDidUpdate();
+        void sensorsStatusDidUpdate(Sensors.Status status);
+        void sensorHourlySummaryDidUpdate(Sensors.HourlySummary summary);
+
+        void weatherConditionsDidUpdate(Weather.Conditions conditions);
+        void weatherForecastDidUpdate(List<Weather.Conditions> forefast);
     }
 
     public class Binder extends android.os.Binder {
@@ -53,86 +72,96 @@ public class UpdateService extends Service {
         }
     }
 
-    private static class Result {
-        double mHrt;
-        double mHrv;
-        double mTmp;
-
-        Result(double hrt, double hrv, double tmp) {
-            mHrt = hrt;
-            mHrv = hrv;
-            mTmp = tmp;
-        }
-    }
-
-    private class GetHourlyMetricsTask extends AsyncTask<Void, Void, AgentApi.Hourly> {
-
-        @Override
-        protected AgentApi.Hourly doInBackground(Void... params) {
-            try {
-                return AgentApi.getHourly(mOrigin, 0, HOURS_IN_HOURLY);
-            } catch (IOException e) {
-                Log.e(TAG, "getHourly api call failed", e);
-                return null;
-            }
-        }
-
-        @Override
-        protected void onPostExecute(AgentApi.Hourly hourly) {
-            if (hourly == null) {
-                return;
-            }
-
-            mHourly = hourly;
-            fireStatusDidUpdate();
-        }
-    }
-
     private class UpdateTask extends AsyncTask<Void, Void, Void> {
 
-        private AgentApi.Status mStatus;
-        private AgentApi.Hourly mHourly;
+        private Sensors.Status mSensorStatus;
+        private Sensors.HourlySummary mSensorsHourlySummary;
+        private Weather.Conditions mWeatherConditions;
+        private List<Weather.Conditions> mWeatherHourlyForecast;
 
         @Override
         protected void onPreExecute() {
-            mStatus = null;
-            mHourly = null;
+            mSensorStatus = null;
+            mSensorsHourlySummary = null;
+            mWeatherConditions = null;
+        }
+
+        private void fetchSensorsStatus(long time) {
+            try {
+                mSensorStatus = mClient.sensors().getStatus();
+            } catch (Exception e) {
+                Log.e(TAG, "agent api call failed", e);
+            }
+        }
+
+        private void fetchSensorsHourlySummary(long time) {
+            try {
+                if (mNextSensorHourlySummaryUpdate < time || mNextSensorHourlySummaryUpdate == 0) {
+                    mSensorsHourlySummary = mClient.sensors().getHourlySummary(0, HOURS_IN_HOURLY);
+                    mNextSensorHourlySummaryUpdate = time + SENSOR_HOURLY_SUMMARY_INTERVAL;
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "hourly update failed", e);
+            }
+        }
+
+        private void fetchWeatherConditions(long time) {
+            try {
+                if (mNextWeatherConditionsUpdate < time || mNextWeatherConditionsUpdate == 0) {
+                    mWeatherConditions = mClient.weather().getCurrentConditions();
+                    mNextWeatherConditionsUpdate = time + WEATHER_CONDITIONS_INTERVAL;
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "weather conditions update failed", e);
+            }
+        }
+
+        private void fetchWeatherForecast(long time) {
+            try {
+                if (mNextWeatherForecastUpdate < time || mNextWeatherForecastUpdate == 0) {
+                    mWeatherHourlyForecast = mClient.weather().getHourlyForecast();
+                    mNextWeatherForecastUpdate = time + WEATHER_FORECAST_INTERVAL;
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "weather forecast update failed", e);
+            }
         }
 
         @Override
         protected Void doInBackground(Void... params) {
             long time = System.currentTimeMillis();
 
-            try {
-                mStatus = AgentApi.getStatus(mOrigin);
-            } catch (Exception e) {
-                Log.e(TAG, "agent api call failed", e);
-            }
 
-            try {
-                if (mNextHistoryUpdateAt < time || mNextHistoryUpdateAt == 0) {
-                    mHourly = AgentApi.getHourly(mOrigin, 0, HOURS_IN_HOURLY);
-                    mNextHistoryUpdateAt = time + HOURLY_METRICS_INTERVAL;
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "hourly update failed", e);
-            }
+            fetchSensorsStatus(time);
+            fetchSensorsHourlySummary(time);
+            fetchWeatherConditions(time);
+            fetchWeatherForecast(time);
 
             return null;
         }
 
         @Override
         protected void onPostExecute(Void res) {
-            mHandler.postDelayed(mNeedsUpdateRunnable, POLLING_DELAY);
+            mHandler.postDelayed(mNeedsUpdateRunnable, BASE_INTERVAL);
 
-            if (mStatus != null) {
-                UpdateService.this.mStatus = mStatus;
-                fireStatusDidUpdate();
+            if (mSensorStatus != null) {
+                UpdateService.this.mSensorsStatus = mSensorStatus;
+                fireSensorStatusDidUpdate();
             }
 
-            if (mHourly != null) {
-                UpdateService.this.mHourly = mHourly;
-                fireHourlyDidUpdate();
+            if (mWeatherConditions != null) {
+                UpdateService.this.mWeatherConditions = mWeatherConditions;
+                fireWeatherConditionsDidUpdate();
+            }
+
+            if (mSensorsHourlySummary != null) {
+                UpdateService.this.mSensorsHourlySummary = mSensorsHourlySummary;
+                fireSensorHourlySummaryDidUpdate();
+            }
+
+            if (mWeatherHourlyForecast != null) {
+                UpdateService.this.mWeatherHourlyForecast = mWeatherHourlyForecast;
+                fireWeatherForecastDidUpdate();
             }
         }
     }
@@ -158,15 +187,27 @@ public class UpdateService extends Service {
         super.onDestroy();
     }
 
-    private void fireStatusDidUpdate() {
+    private void fireSensorStatusDidUpdate() {
         for (int i = 0, n = mListeners.size(); i < n; i++) {
-            mListeners.get(i).statusDidUpdate();
+            mListeners.get(i).sensorsStatusDidUpdate(mSensorsStatus);
         }
     }
 
-    private void fireHourlyDidUpdate() {
+    private void fireSensorHourlySummaryDidUpdate() {
         for (int i = 0, n = mListeners.size(); i < n; i++) {
-            mListeners.get(i).hourlyDidUpdate();
+            mListeners.get(i).sensorHourlySummaryDidUpdate(mSensorsHourlySummary);
+        }
+    }
+
+    private void fireWeatherConditionsDidUpdate() {
+        for (int i = 0, n = mListeners.size(); i < n; i++) {
+            mListeners.get(i).weatherConditionsDidUpdate(mWeatherConditions);
+        }
+    }
+
+    private void fireWeatherForecastDidUpdate() {
+        for (int i = 0, n = mListeners.size(); i < n; i++) {
+            mListeners.get(i).weatherForecastDidUpdate(mWeatherHourlyForecast);
         }
     }
 
@@ -187,23 +228,15 @@ public class UpdateService extends Service {
         }
     }
 
-    public int getHrt() {
-        return (int)mStatus.hrt().rate();
+    public Sensors.Status getSensorsStatus() {
+        return mSensorsStatus;
     }
 
-    public int getHrv() {
-        return (int)mStatus.hrt().variability();
+    public Sensors.HourlySummary getSensorsHourlySummary() {
+        return mSensorsHourlySummary;
     }
 
-    public int getTmp() {
-        return (int)Math.round(mStatus.tmp().temp());
-    }
-
-    public AgentApi.Status.Weather getWeather() {
-        return mStatus.weather();
-    }
-
-    public AgentApi.Hourly getHourly() {
-        return mHourly;
+    public Weather.Conditions getWeatherConditions() {
+        return mWeatherConditions;
     }
 }

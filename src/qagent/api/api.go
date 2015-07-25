@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
+	"time"
+
 	"qagent/ctx"
 	"qagent/forecast"
 	"qagent/heart"
 	"qagent/store"
 	"qagent/temp"
-	"strconv"
-	"time"
 )
 
 func WriteJson(w http.ResponseWriter, data interface{}) error {
@@ -180,48 +181,62 @@ func apiHourlyAll(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	Must(WriteJson(w, &res))
 }
 
-func apiForecast(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+func latestWeatherOrError(c *ctx.Context, w http.ResponseWriter, r *http.Request) *forecast.Report {
 	rep := c.Forecast.Latest()
 	if rep == nil {
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable),
 			http.StatusServiceUnavailable)
-		return
 	}
+	return rep
+}
 
-	Must(WriteJson(w, rep))
+func apiWeatherHourly(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	if rep := latestWeatherOrError(c, w, r); rep != nil {
+		Must(WriteJson(w, rep.Hourly))
+	}
+}
+
+func apiWeatherCurrent(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	if rep := latestWeatherOrError(c, w, r); rep != nil {
+		Must(WriteJson(w, rep.Currently))
+	}
+}
+
+func apiWeatherDaily(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	if rep := latestWeatherOrError(c, w, r); rep != nil {
+		Must(WriteJson(w, rep.Daily))
+	}
 }
 
 // Setup ...
 func Setup(m *http.ServeMux, c *ctx.Context) {
-	m.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
-		var res struct {
-			ctx.Stats
-			Weather *forecast.Currently `json:",omitempty"`
-		}
-
-		c.StatsFor(&res.Stats)
-
-		f := c.Forecast.Latest()
-		if f != nil {
-			res.Weather = f.Currently
-		}
-
+	m.HandleFunc("/api/sensors/status", func(w http.ResponseWriter, r *http.Request) {
+		var res ctx.Stats
+		c.StatsFor(&res)
 		Must(WriteJson(w, &res))
 	})
 
-	m.HandleFunc("/api/hourly/hrt", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("/api/sensors/hourly/hrt", func(w http.ResponseWriter, r *http.Request) {
 		apiHourlyHrt(c, w, r)
 	})
 
-	m.HandleFunc("/api/hourly/tmp", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("/api/sensors/hourly/tmp", func(w http.ResponseWriter, r *http.Request) {
 		apiHourlyTmp(c, w, r)
 	})
 
-	m.HandleFunc("/api/hourly/all", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("/api/sensors/hourly/all", func(w http.ResponseWriter, r *http.Request) {
 		apiHourlyAll(c, w, r)
 	})
 
-	m.HandleFunc("/api/forecast", func(w http.ResponseWriter, r *http.Request) {
-		apiForecast(c, w, r)
+	m.HandleFunc("/api/weather/current", func(w http.ResponseWriter, r *http.Request) {
+		apiWeatherCurrent(c, w, r)
+	})
+
+	m.HandleFunc("/api/weather/hourly", func(w http.ResponseWriter, r *http.Request) {
+		apiWeatherHourly(c, w, r)
+	})
+
+	m.HandleFunc("/api/weather/daily", func(w http.ResponseWriter, r *http.Request) {
+		apiWeatherDaily(c, w, r)
 	})
 }

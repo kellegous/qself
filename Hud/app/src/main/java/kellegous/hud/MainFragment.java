@@ -16,6 +16,9 @@ import android.view.ViewGroup;
 
 import java.util.List;
 
+import kellegous.hud.kellegous.hud.api.Sensors;
+import kellegous.hud.kellegous.hud.api.Weather;
+
 public class MainFragment extends Fragment implements ServiceConnection, UpdateService.Listener {
     private static final String TAG = MainFragment.class.getSimpleName();
 
@@ -75,25 +78,26 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
     }
 
     @Override
-    public void statusDidUpdate() {
-        mHeartDataView.updateCurrentData(mService.getHrt(), mService.getHrv());
-        mWeatherDataView.setCurrentStatus(mService.getTmp(), mService.getWeather());
-    }
+    public void sensorsStatusDidUpdate(Sensors.Status status) {
+        mHeartDataView.updateCurrentData(
+                status.hrt().rate(),
+                status.hrt().variability());
 
-    private  void updateTmpData(List<AgentApi.Hourly.Tmp> vals) {
-        int n = vals.size();
-        double[] tmp = new double[n];
-        for (int i = 0; i < n; i++) {
-            tmp[n - i - 1] = vals.get(i).temp();
-        }
-
-        // TODO(knorton): Update the temperature view
+        mWeatherDataView.setIndoorTemperature(status.tmp().temp());
     }
 
     @Override
-    public void hourlyDidUpdate() {
-        AgentApi.Hourly hourly = mService.getHourly();
-        mHeartDataView.updateHourlyData(hourly.hrt());
-        updateTmpData(hourly.tmp());
+    public void weatherConditionsDidUpdate(Weather.Conditions conditions) {
+        mWeatherDataView.setCurrentOutdoorConditions(conditions);
+    }
+
+    @Override
+    public void weatherForecastDidUpdate(List<Weather.Conditions> forecast) {
+        mWeatherDataView.setHourlyForecast(forecast);
+    }
+
+    @Override
+    public void sensorHourlySummaryDidUpdate(Sensors.HourlySummary summary) {
+        mHeartDataView.updateHourlyData(summary.hrt());
     }
 }
