@@ -8,7 +8,11 @@ import java.util.Map;
 
 public class Typefaces {
     public static final String RobotoThin = "Roboto-Thin.ttf";
+    public static final String RobotoLight = "Roboto-Light.ttf";
+    public static final String RobotoMedium = "Roboto-Medium.ttf";
+    public static final String RobotoCondensedRegular = "RobotoCondensed-Regular.ttf";
     public static final String RobotoCondensedLight = "RobotoCondensed-Light.ttf";
+    public static final String Weather = "weather.ttf";
 
     private static Map<String, Typeface> sFonts = new HashMap<>();
 

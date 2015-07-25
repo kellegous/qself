@@ -77,9 +77,7 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
     @Override
     public void statusDidUpdate() {
         mHeartDataView.updateCurrentData(mService.getHrt(), mService.getHrv());
-        mWeatherDataView.setCurrentTemperature(
-                mService.getTmp(),
-                (int)Math.round(mService.getWeather().temp()));
+        mWeatherDataView.setCurrentStatus(mService.getTmp(), mService.getWeather());
     }
 
     private  void updateTmpData(List<AgentApi.Hourly.Tmp> vals) {

@@ -236,6 +236,7 @@ public class AgentApi {
             private double mTemp;
             private String mIcon;
             private String mSummary;
+            private double mApparentTemp;
 
             public double temp() {
                 return mTemp;
@@ -249,6 +250,10 @@ public class AgentApi {
                 return mSummary;
             }
 
+            public double apparentTemp() {
+                return mApparentTemp;
+            }
+
             private static void parse(JsonReader r, Status.Weather w) throws IOException {
                 r.beginObject();
                 while (r.hasNext()) {
@@ -259,6 +264,8 @@ public class AgentApi {
                         w.mIcon = r.nextString();
                     } else if (name.equals("Summary")) {
                         w.mSummary = r.nextString();
+                    } else if (name.equals("ApparentTemp")) {
+                        w.mApparentTemp = r.nextDouble();
                     } else {
                         r.skipValue();
                     }
