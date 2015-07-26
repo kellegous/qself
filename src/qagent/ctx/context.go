@@ -1,18 +1,22 @@
 package ctx
 
 import (
+	"sync"
+	"time"
+
+	"qagent/config"
 	"qagent/forecast"
 	"qagent/heart"
 	"qagent/store"
 	"qagent/temp"
-	"sync"
-	"time"
+	"qagent/tides"
 )
 
 const (
 	heartResetAfter = 2 * time.Second
 )
 
+// Context ...
 type Context struct {
 	lock        sync.RWMutex
 	store       *store.Store
@@ -21,8 +25,10 @@ type Context struct {
 	lastTemp    uint16
 	lastTempAt  time.Time
 	Forecast    forecast.Service
+	Tides       tides.Service
 }
 
+// Stats ...
 type Stats struct {
 	Hrt struct {
 		Active      bool
@@ -36,6 +42,7 @@ type Stats struct {
 	}
 }
 
+// DidReceiveHrm ...
 func (c *Context) DidReceiveHrm(t time.Time, rr uint16) error {
 	if !updateHrm(c, t, rr) {
 		return nil
@@ -74,6 +81,7 @@ func updateTmp(c *Context, t time.Time, raw uint16) bool {
 	return true
 }
 
+// DidReceiveTmp ...
 func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
 
 	if !updateTmp(c, t, raw) {
@@ -85,6 +93,7 @@ func (c *Context) DidReceiveTmp(t time.Time, raw uint16) error {
 	return nil
 }
 
+// StatsFor ...
 func (c *Context) StatsFor(s *Stats) {
 	t := time.Now()
 
@@ -107,18 +116,21 @@ func (c *Context) StatsFor(s *Stats) {
 	s.Tmp.Temp = temp.FromRaw(c.lastTemp)
 }
 
+// Store ...
 func (c *Context) Store() *store.Store {
 	return c.store
 }
 
-func Make(ctx *Context, dbpath string, area *forecast.Area) error {
-	s, err := store.Open(dbpath)
+// Make ...
+func Make(ctx *Context, cfg *config.Config) error {
+	s, err := store.Open(cfg.Db)
 	if err != nil {
 		return err
 	}
 
 	ctx.store = s
 	ctx.heartStats = heart.NewStats(16, 100)
-	ctx.Forecast = forecast.NewService(area, 15*time.Minute)
+	ctx.Forecast = forecast.NewService(cfg, 15*time.Minute)
+	ctx.Tides = tides.NewService(cfg, 15*time.Minute)
 	return nil
 }

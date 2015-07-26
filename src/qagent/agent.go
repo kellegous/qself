@@ -4,17 +4,15 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"flag"
-	"gopkg.in/yaml.v2"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
-	"os"
-	"qagent/api"
-	"qagent/ctx"
-	"qagent/forecast"
 	"time"
+
+	"qagent/api"
+	"qagent/config"
+	"qagent/ctx"
 )
 
 const (
@@ -24,26 +22,7 @@ const (
 	cmdUpg byte = 0x02
 )
 
-type Config struct {
-	AgentAddr string `yaml:"AgentAddr"`
-	HttpAddr  string `yaml:"HttpAddr"`
-	Db        string `yaml:"Db"`
-	Forecast  struct {
-		ApiKey string  `yaml:"ApiKey"`
-		Lat    float64 `yaml:"Lat"`
-		Lon    float64 `yaml:"Lon"`
-	} `yaml:"Forecast"`
-}
-
-func (c *Config) Write(filename string) error {
-	b, err := yaml.Marshal(c)
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(filename, b, os.ModePerm)
-}
-
+// Fe ...
 type Fe struct {
 	ctx.Context
 	conns Conns
@@ -53,6 +32,7 @@ func uintValueFrom(buf []byte) uint16 {
 	return uint16(buf[0])<<8 | uint16(buf[1])
 }
 
+// ServeAdvanced ...
 func ServeAdvanced(con net.Conn, fe *Fe) {
 	var cmd byte
 	var t int64
@@ -89,6 +69,7 @@ func ServeAdvanced(con net.Conn, fe *Fe) {
 	}
 }
 
+// ServeBasic ...
 func ServeBasic(id int, con net.Conn, fe *Fe) {
 	defer func() {
 		fe.conns.DidDisconnect(id)
@@ -120,12 +101,13 @@ func ServeBasic(id int, con net.Conn, fe *Fe) {
 				log.Print(err)
 			}
 		default:
-			log.Print("invalid command: %d", buf[0])
+			log.Printf("invalid command: %d", buf[0])
 			return
 		}
 	}
 }
 
+// ListenForSensors ...
 func ListenForSensors(addr string, fe *Fe) error {
 	a, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
@@ -154,21 +136,13 @@ func ListenForSensors(addr string, fe *Fe) error {
 	return nil
 }
 
-func ReadConfig(cfg *Config, filename string) error {
-	b, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-
-	return yaml.Unmarshal(b, &cfg)
-}
-
-func writeJson(w http.ResponseWriter, data interface{}) error {
+func writeJSON(w http.ResponseWriter, data interface{}) error {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	return json.NewEncoder(w).Encode(data)
 }
 
-func RunHttp(addr string, fe *Fe) error {
+// RunHTTP ...
+func RunHTTP(addr string, fe *Fe) error {
 
 	m := http.NewServeMux()
 
@@ -176,7 +150,7 @@ func RunHttp(addr string, fe *Fe) error {
 
 	m.HandleFunc("/api/conns", func(w http.ResponseWriter, r *http.Request) {
 		res := fe.conns.Conns()
-		if err := writeJson(w, res); err != nil {
+		if err := writeJSON(w, res); err != nil {
 			log.Panic(err)
 		}
 	})
@@ -188,17 +162,13 @@ func main() {
 	flagCfg := flag.String("config", "config.yaml", "")
 	flag.Parse()
 
-	var cfg Config
-	if err := ReadConfig(&cfg, *flagCfg); err != nil {
+	var cfg config.Config
+	if err := cfg.ReadFromFile(*flagCfg); err != nil {
 		log.Panic(err)
 	}
 
 	var fe Fe
-	if err := ctx.Make(&fe.Context, cfg.Db, &forecast.Area{
-		Lat:    cfg.Forecast.Lat,
-		Lon:    cfg.Forecast.Lon,
-		ApiKey: cfg.Forecast.ApiKey,
-	}); err != nil {
+	if err := ctx.Make(&fe.Context, &cfg); err != nil {
 		log.Panic(err)
 	}
 
@@ -206,7 +176,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	if err := RunHttp(cfg.HttpAddr, &fe); err != nil {
+	if err := RunHTTP(cfg.HTTPAddr, &fe); err != nil {
 		log.Panic(err)
 	}
 }

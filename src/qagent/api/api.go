@@ -14,11 +14,13 @@ import (
 	"qagent/temp"
 )
 
-func WriteJson(w http.ResponseWriter, data interface{}) error {
+// WriteJSON ...
+func WriteJSON(w http.ResponseWriter, data interface{}) error {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	return json.NewEncoder(w).Encode(data)
 }
 
+// Must ...
 func Must(err error) {
 	if err != nil {
 		log.Panic(err)
@@ -115,7 +117,7 @@ func apiHourlyHrt(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Panic(err)
 	}
-	Must(WriteJson(w, &res))
+	Must(WriteJSON(w, &res))
 }
 
 type hourlyTmp struct {
@@ -154,7 +156,7 @@ func apiHourlyTmp(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Panic(err)
 	}
-	Must(WriteJson(w, &res))
+	Must(WriteJSON(w, &res))
 }
 
 // TODO(knorton): The intent is to do this in parallel.
@@ -178,7 +180,7 @@ func apiHourlyAll(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 		hrt,
 	}
 
-	Must(WriteJson(w, &res))
+	Must(WriteJSON(w, &res))
 }
 
 func latestWeatherOrError(c *ctx.Context, w http.ResponseWriter, r *http.Request) *forecast.Report {
@@ -190,21 +192,32 @@ func latestWeatherOrError(c *ctx.Context, w http.ResponseWriter, r *http.Request
 	return rep
 }
 
+func apiTides(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+	rep := c.Tides.Latest()
+	if rep == nil {
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable),
+			http.StatusServiceUnavailable)
+		return
+	}
+
+	Must(WriteJSON(w, rep))
+}
+
 func apiWeatherHourly(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	if rep := latestWeatherOrError(c, w, r); rep != nil {
-		Must(WriteJson(w, rep.Hourly))
+		Must(WriteJSON(w, rep.Hourly))
 	}
 }
 
 func apiWeatherCurrent(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	if rep := latestWeatherOrError(c, w, r); rep != nil {
-		Must(WriteJson(w, rep.Currently))
+		Must(WriteJSON(w, rep.Currently))
 	}
 }
 
 func apiWeatherDaily(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	if rep := latestWeatherOrError(c, w, r); rep != nil {
-		Must(WriteJson(w, rep.Daily))
+		Must(WriteJSON(w, rep.Daily))
 	}
 }
 
@@ -213,7 +226,7 @@ func Setup(m *http.ServeMux, c *ctx.Context) {
 	m.HandleFunc("/api/sensors/status", func(w http.ResponseWriter, r *http.Request) {
 		var res ctx.Stats
 		c.StatsFor(&res)
-		Must(WriteJson(w, &res))
+		Must(WriteJSON(w, &res))
 	})
 
 	m.HandleFunc("/api/sensors/hourly/hrt", func(w http.ResponseWriter, r *http.Request) {
@@ -238,5 +251,9 @@ func Setup(m *http.ServeMux, c *ctx.Context) {
 
 	m.HandleFunc("/api/weather/daily", func(w http.ResponseWriter, r *http.Request) {
 		apiWeatherDaily(c, w, r)
+	})
+
+	m.HandleFunc("/api/tides/predictions", func(w http.ResponseWriter, r *http.Request) {
+		apiTides(c, w, r)
 	})
 }

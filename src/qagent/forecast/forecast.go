@@ -6,20 +6,18 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"qagent/config"
 )
 
 const baseURL = "https://api.forecast.io/forecast"
 
-// Area ...
-type Area struct {
-	Lat    float64
-	Lon    float64
-	ApiKey string
-}
-
-// Get ...
-func (a *Area) Get() (*Report, error) {
-	res, err := http.Get(fmt.Sprintf("%s/%s/%0.6f,%0.6f", baseURL, a.ApiKey, a.Lat, a.Lon))
+func fetch(cfg *config.Config) (*Report, error) {
+	res, err := http.Get(fmt.Sprintf("%s/%s/%0.6f,%0.6f",
+		baseURL,
+		cfg.Forecast.APIKey,
+		cfg.Forecast.Lat,
+		cfg.Forecast.Lon))
 	if err != nil {
 		return nil, err
 	}
@@ -251,9 +249,8 @@ type Report struct {
 }
 
 type service struct {
-	Area *Area
-	r    *Report
-	lck  sync.RWMutex
+	r   *Report
+	lck sync.RWMutex
 }
 
 // Service ...
@@ -262,14 +259,12 @@ type Service interface {
 }
 
 // NewService ...
-func NewService(a *Area, ttl time.Duration) Service {
-	s := &service{
-		Area: a,
-	}
+func NewService(cfg *config.Config, ttl time.Duration) Service {
+	s := &service{}
 
 	go func() {
 		for {
-			r, err := a.Get()
+			r, err := fetch(cfg)
 			if err == nil {
 				s.lck.Lock()
 				s.r = r

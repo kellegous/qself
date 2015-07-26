@@ -229,7 +229,7 @@ public class WeatherDataView extends DataView {
             Rect rect = new Rect();
             float padding = Dimens.dpToPx(resources, VIEW_PADDING);
 
-            float indoorEndsAt = 2*padding + Dimens.dpToPx(resources, VALUE_WIDTH);
+            float indoorEndsAt = Dimens.dpToPx(resources, VALUE_WIDTH);
 
             String indoorTitle = resources.getString(R.string.weather_data_view_indoor_title);
             String outdoorTitle = resources.getString(R.string.weather_data_view_outdoor_title);

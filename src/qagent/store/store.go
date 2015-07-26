@@ -4,25 +4,32 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"path/filepath"
+	"time"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"path/filepath"
-	"time"
 )
 
-var BailOut = errors.New("stop")
+// ErrBailOut ...
+var ErrBailOut = errors.New("stop")
 
 var (
+	// StartOfTime ...
 	StartOfTime = time.Time{}
+
+	// LimitOfTime ...
 	LimitOfTime = time.Date(4000, 1, 1, 0, 0, 0, 0, time.Local)
 )
 
+// Collection ...
 type Collection struct {
 	db  *leveldb.DB
 	str *Store
 }
 
+// Store ...
 type Store struct {
 	ch chan func()
 
@@ -30,10 +37,12 @@ type Store struct {
 	tmp *Collection
 }
 
+// Hrt ...
 func (s *Store) Hrt() *Collection {
 	return s.hrt
 }
 
+// Tmp ...
 func (s *Store) Tmp() *Collection {
 	return s.tmp
 }
@@ -53,17 +62,19 @@ func write(w *Collection, t time.Time, v uint16) error {
 	return w.db.Put(kb.Bytes(), vb.Bytes(), &wo)
 }
 
-func (w *Collection) WriteSync(t time.Time, v uint16) error {
+// WriteSync ...
+func (c *Collection) WriteSync(t time.Time, v uint16) error {
 	ch := make(chan error)
-	w.str.ch <- func() {
-		ch <- write(w, t, v)
+	c.str.ch <- func() {
+		ch <- write(c, t, v)
 	}
 	return <-ch
 }
 
-func (w *Collection) Write(t time.Time, v uint16) {
-	w.str.ch <- func() {
-		write(w, t, v)
+// Write ...
+func (c *Collection) Write(t time.Time, v uint16) {
+	c.str.ch <- func() {
+		write(c, t, v)
 	}
 }
 
@@ -91,6 +102,7 @@ func timeToBytes(t time.Time) []byte {
 	return buf.Bytes()
 }
 
+// ForEachInRange ...
 func (c *Collection) ForEachInRange(start, limit time.Time, fn func(t time.Time, v uint16) error) error {
 	var ro opt.ReadOptions
 	it := c.db.NewIterator(&util.Range{
@@ -101,7 +113,7 @@ func (c *Collection) ForEachInRange(start, limit time.Time, fn func(t time.Time,
 
 	for it.Next() {
 		if err := dispatchTo(it.Key(), it.Value(), fn); err != nil {
-			if err == BailOut {
+			if err == ErrBailOut {
 				return nil
 			} else if err != nil {
 				return err
@@ -112,6 +124,7 @@ func (c *Collection) ForEachInRange(start, limit time.Time, fn func(t time.Time,
 	return it.Error()
 }
 
+// ForEachFromEnd ...
 func (c *Collection) ForEachFromEnd(fn func(t time.Time, v uint16) error) error {
 	var ro opt.ReadOptions
 	it := c.db.NewIterator(nil, &ro)
@@ -123,7 +136,7 @@ func (c *Collection) ForEachFromEnd(fn func(t time.Time, v uint16) error) error 
 
 	for {
 		if err := dispatchTo(it.Key(), it.Value(), fn); err != nil {
-			if err == BailOut {
+			if err == ErrBailOut {
 				return nil
 			}
 			return err
@@ -137,6 +150,7 @@ func (c *Collection) ForEachFromEnd(fn func(t time.Time, v uint16) error) error 
 	return it.Error()
 }
 
+// ForEach ...
 func (c *Collection) ForEach(fn func(t time.Time, v uint16) error) error {
 	var ro opt.ReadOptions
 	it := c.db.NewIterator(nil, &ro)
@@ -144,7 +158,7 @@ func (c *Collection) ForEach(fn func(t time.Time, v uint16) error) error {
 
 	for it.Next() {
 		if err := dispatchTo(it.Key(), it.Value(), fn); err != nil {
-			if err == BailOut {
+			if err == ErrBailOut {
 				return nil
 			}
 			return err
@@ -160,6 +174,7 @@ func service(s *Store) {
 	}
 }
 
+// Open ...
 func Open(dir string) (*Store, error) {
 	s := &Store{
 		ch: make(chan func()),
