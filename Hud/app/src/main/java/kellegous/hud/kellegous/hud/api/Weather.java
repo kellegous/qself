@@ -8,18 +8,61 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Weather {
+
+    public static final int ICON_UNKNOWN = 0;
+    public static final int ICON_CLEAR_DAY = 1;
+    public static final int ICON_CLEAR_NIGHT = 2;
+    public static final int ICON_RAIN = 3;
+    public static final int ICON_SNOW = 4;
+    public static final int ICON_SLEET = 5;
+    public static final int ICON_WIND = 6;
+    public static final int ICON_FOG = 7;
+    public static final int ICON_CLOUDY = 8;
+    public static final int ICON_PARTLY_CLOUDY_DAY = 9;
+    public static final int ICON_PARTLY_CLOUDY_NIGHT = 10;
+    public static final int ICON_THUNDERSTORM = 11;
+
+    public static final int ICON_LAST_INDEX = ICON_THUNDERSTORM;
+
     private Weather() {
     }
 
+    private static int iconFromApiString(String name) {
+        if ("clear-day".equals(name)) {
+            return ICON_CLEAR_DAY;
+        } else if ("clear-night".equals(name)) {
+            return ICON_CLEAR_NIGHT;
+        } else if ("rain".equals(name)) {
+            return ICON_RAIN;
+        } else if ("snow".equals(name)) {
+            return ICON_SNOW;
+        } else if ("sleet".equals(name)) {
+            return ICON_SLEET;
+        } else if ("wind".equals(name)) {
+            return ICON_WIND;
+        } else if ("fog".equals(name)) {
+            return ICON_FOG;
+        } else if ("cloudy".equals(name)) {
+            return ICON_CLOUDY;
+        } else if ("partly-cloudy-day".equals(name)) {
+            return ICON_PARTLY_CLOUDY_DAY;
+        } else if ("partly-cloudy-night".equals(name)) {
+            return ICON_PARTLY_CLOUDY_NIGHT;
+        } else if ("thunderstorm".equals(name)) {
+            return ICON_THUNDERSTORM;
+        }
+        return ICON_UNKNOWN;
+    }
     /**
      *
      */
     public static class Conditions {
         private Time mTime = new Time(Api.timeZero);
         private double mTemp;
-        private String mIcon;
+        private int mIcon;
         private String mSummary;
         private double mApparentTemp;
+        private double mPrecipProb;
 
         public Time time() {
             return mTime;
@@ -29,7 +72,7 @@ public class Weather {
             return mTemp;
         }
 
-        public String icon() {
+        public int icon() {
             return mIcon;
         }
 
@@ -41,6 +84,10 @@ public class Weather {
             return mApparentTemp;
         }
 
+        public double probabilityOfPrecipitation() {
+            return mPrecipProb;
+        }
+
         private static Conditions parse(JsonReader r, Conditions c) throws IOException {
             r.beginObject();
             while (r.hasNext()) {
@@ -48,13 +95,15 @@ public class Weather {
                 if (name.equals("Temp")) {
                     c.mTemp = r.nextDouble();
                 } else if (name.equals("Icon")) {
-                    c.mIcon = r.nextString();
+                    c.mIcon = iconFromApiString(r.nextString());
                 } else if (name.equals("Summary")) {
                     c.mSummary = r.nextString();
                 } else if (name.equals("ApparentTemp")) {
                     c.mApparentTemp = r.nextDouble();
                 } else if (name.equals("Time")) {
                     Api.parseTime(r.nextString(), c.mTime);
+                } else if (name.equals("PrecipProbability")) {
+                    c.mPrecipProb = r.nextDouble();
                 } else {
                     r.skipValue();
                 }

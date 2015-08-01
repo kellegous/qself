@@ -136,7 +136,7 @@ func (h *Hourly) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	h.Time = time.Unix(s.Time, 0)
+	h.Time = time.Unix(s.Time, 0).UTC()
 	h.Summary = s.Summary
 	h.Icon = s.Icon
 	h.Temp = s.Temp

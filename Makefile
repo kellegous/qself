@@ -13,6 +13,9 @@ bin/qsensor: $(shell find src)
 bin/qinstall: $(shell find src)
 	GOPATH=`pwd`:`pwd`/dep go build -o $@ src/qinstall/install.go src/qinstall/fake.go
 
+bin/qdebug: $(shell find src/qdebug)
+	GOPATH=`pwd`:`pwd`/dep go build -o $@ src/qdebug/qdebug.go
+
 bin/go-bindata:
 	GOPATH=`pwd`/dep go get -u github.com/jteeuwen/go-bindata/...
 

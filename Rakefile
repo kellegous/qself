@@ -35,6 +35,10 @@ task :subl do
   spawn('subl', '.')
 end
 
+task :atom do
+  spawn('atom', '.')
+end
+
 task :deploy do
   # TODO(knorton):
   # => rsync needed code.

@@ -1,14 +1,13 @@
 package tides
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,24 +19,34 @@ const (
 	baseTimesURL       = "http://tidesandcurrents.noaa.gov/noaatidepredictions/StationTideInfo.jsp"
 )
 
+// State ...
+type State int
+
+const (
+	// Invalid is used for debugging only
+	Invalid State = iota
+
+	// HighTide ...
+	HighTide
+
+	// LowTide ...
+	LowTide
+
+	// RisingTide ...
+	RisingTide
+
+	// FallingTide ...
+	FallingTide
+)
+
 func fetch(cfg *config.Config, begin, end string) (*Report, error) {
 	r, err := fetchPredictions(cfg.Tides.Station, begin, end)
 	if err != nil {
 		return nil, err
 	}
 
-	now := time.Now()
-	tides, err := fetchTimes(now, cfg.Tides.Station)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, tide := range tides {
-		if tide.High {
-			r.HighTides = append(r.HighTides, tide.Time)
-		} else {
-			r.LowTides = append(r.LowTides, tide.Time)
-		}
+	if !updatePredictionStates(r.Predictions) {
+		return nil, fmt.Errorf("too few predictions: %d", len(r.Predictions))
 	}
 
 	return r, nil
@@ -68,97 +77,64 @@ func fetchPredictions(station, begin, end string) (*Report, error) {
 	return &r, nil
 }
 
-func findTimeRelativeToCurrent(cur time.Time, t time.Time) time.Time {
-	padded := cur.Add(-15 * time.Minute)
-	today := time.Date(
-		cur.Year(),
-		cur.Month(),
-		cur.Day(),
-		t.Hour(),
-		t.Minute(),
-		0,
-		0,
-		cur.Location())
-	if today.After(padded) {
-		return today
+func updatePredictionStates(preds []*Prediction) bool {
+	if len(preds) < 3 {
+		return false
 	}
 
-	cur = cur.Add(24 * time.Hour)
-	return time.Date(
-		cur.Year(),
-		cur.Month(),
-		cur.Day(),
-		t.Hour(),
-		t.Minute(),
-		0,
-		0,
-		cur.Location())
-}
+	// We'll look at a window of 3 values and compute the gradient on each side
+	// of the modal value to determine the state of the tide.
+	for i, n := 1, len(preds)-1; i < n; i++ {
+		a, b, c := preds[i-1], preds[i], preds[i+1]
 
-func fetchTimes(cur time.Time, station string) ([]*Time, error) {
-	res, err := http.Get(fmt.Sprintf("%s?%s", baseTimesURL, url.Values{
-		"Stationid": {station},
-		"timeZone":  {"2"},
-	}.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
+		// compute the two gradients
+		ab := b.Value - a.Value
+		bc := c.Value - b.Value
 
-	var times []*Time
-	s := bufio.NewScanner(res.Body)
-	for s.Scan() {
-		e := s.Text()
-
-		ix := strings.Index(e, "|")
-		if ix == -1 {
-			continue
+		// we'll now look at the signs of the two gradients to determine if the
+		// two time windows represent a saddle point (low and high tides) or a
+		// consistency in the direction of change (falling or rising)
+		sab, sbc := math.Signbit(ab), math.Signbit(bc)
+		if sab != sbc {
+			if sab {
+				b.State = LowTide
+			} else {
+				b.State = HighTide
+			}
+		} else {
+			if sab {
+				b.State = FallingTide
+			} else {
+				b.State = RisingTide
+			}
 		}
-
-		t, err := time.Parse("3:04 PM", e[:ix])
-		if err != nil {
-			continue
-		}
-
-		ix = strings.LastIndex(e, "|")
-		if ix == -1 {
-			continue
-		}
-
-		cur = findTimeRelativeToCurrent(cur, t)
-		tt := &Time{
-			Time: cur.UTC(),
-		}
-
-		switch e[ix+1:] {
-		case "high":
-			tt.High = true
-		case "low":
-			tt.High = false
-		default:
-			continue
-		}
-
-		times = append(times, tt)
 	}
 
-	if err := s.Err(); err != nil {
-		return nil, err
+	// We're now left with the two end-points lacking state. Neither of these can
+	// be a saddle point, so we give them a consistent direction relative to the
+	// neighboring data point.
+	switch preds[1].State {
+	case LowTide, FallingTide:
+		preds[0].State = FallingTide
+	default:
+		preds[0].State = RisingTide
 	}
 
-	return times, nil
+	switch preds[len(preds)-2].State {
+	case HighTide, FallingTide:
+		preds[len(preds)-1].State = FallingTide
+	default:
+		preds[len(preds)-1].State = RisingTide
+	}
+
+	return true
 }
 
 // Prediction ...
 type Prediction struct {
 	Time  time.Time
 	Value float64
-}
-
-// Time ...
-type Time struct {
-	Time time.Time
-	High bool
+	State State
 }
 
 // UnmarshalJSON ...
@@ -190,8 +166,6 @@ func (p *Prediction) UnmarshalJSON(b []byte) error {
 // Report ...
 type Report struct {
 	Predictions []*Prediction
-	LowTides    []time.Time
-	HighTides   []time.Time
 }
 
 type service struct {
