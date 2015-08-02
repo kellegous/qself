@@ -40,9 +40,13 @@ public abstract class DataView extends LinearLayout {
         int margin = resources.getDimensionPixelSize(R.dimen.data_view_icon_margin);
         params.setMargins(margin, 0, margin, 0);
 
+
         ImageView imageView = new ImageView(context);
         imageView.setLayoutParams(params);
-        imageView.setImageResource(getIconId());
+        int imgId = getIconId();
+        if (imgId != 0) {
+            imageView.setImageResource(getIconId());
+        }
         addView(imageView);
 
         View contentView = createView(this, LayoutInflater.from(context));
@@ -52,7 +56,7 @@ public abstract class DataView extends LinearLayout {
         addView(contentView);
     }
 
-    protected abstract  int getIconId();
+    protected abstract int getIconId();
 
     protected abstract View createView(ViewGroup parent, LayoutInflater inflater);
 }

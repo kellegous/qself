@@ -9,16 +9,13 @@ import android.os.Looper;
 import android.util.Log;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import kellegous.hud.kellegous.hud.api.Api;
 import kellegous.hud.kellegous.hud.api.Sensors;
+import kellegous.hud.kellegous.hud.api.Tides;
 import kellegous.hud.kellegous.hud.api.Weather;
 
-/**
- * Created by knorton on 2/8/15.
- */
 public class UpdateService extends Service {
     private static final String TAG = UpdateService.class.getSimpleName();
 
@@ -26,22 +23,15 @@ public class UpdateService extends Service {
     private static final int WEATHER_CONDITIONS_INTERVAL = 30*1000;
     private static final int WEATHER_FORECAST_INTERVAL = 5*1000*60;
     private static final int SENSOR_HOURLY_SUMMARY_INTERVAL = 5*1000*60;
+    private static final int TIDES_PREDICTIONS_INTERVAL = 6*1000*60;
 
     private static final int HOURS_IN_HOURLY = 24;
 
     private String mOrigin = "http://flint.kellego.us:8077";
 
-    private Sensors.Status mSensorsStatus;
-
-    private Sensors.HourlySummary mSensorsHourlySummary;
-
-    private Weather.Conditions mWeatherConditions;
-
-    private List<Weather.Conditions> mWeatherHourlyForecast;
-
     private Handler mHandler;
 
-    private List<Listener> mListeners = new ArrayList<>();
+    private Delegate mDelegate;
 
     private final Binder mBinder = new Binder();
 
@@ -57,13 +47,16 @@ public class UpdateService extends Service {
     private long mNextWeatherConditionsUpdate;
     private long mNextSensorHourlySummaryUpdate;
     private long mNextWeatherForecastUpdate;
+    private long mNextTidalPredictionsUpdate;
 
-    public interface Listener {
+    public interface Delegate {
         void sensorsStatusDidUpdate(Sensors.Status status);
         void sensorHourlySummaryDidUpdate(Sensors.HourlySummary summary);
 
         void weatherConditionsDidUpdate(Weather.Conditions conditions);
-        void weatherForecastDidUpdate(List<Weather.Conditions> forefast);
+        void weatherForecastDidUpdate(List<Weather.Conditions> forecast);
+
+        void tidalPredictionsDidUpdate(Tides.Report report);
     }
 
     public class Binder extends android.os.Binder {
@@ -78,12 +71,14 @@ public class UpdateService extends Service {
         private Sensors.HourlySummary mSensorsHourlySummary;
         private Weather.Conditions mWeatherConditions;
         private List<Weather.Conditions> mWeatherHourlyForecast;
+        private Tides.Report mTidalPredictions;
 
         @Override
         protected void onPreExecute() {
             mSensorStatus = null;
             mSensorsHourlySummary = null;
             mWeatherConditions = null;
+            mTidalPredictions = null;
         }
 
         private void fetchSensorsStatus(long time) {
@@ -116,6 +111,17 @@ public class UpdateService extends Service {
             }
         }
 
+        private void fetchTidalPredictions(long time) {
+            try {
+                if (mNextTidalPredictionsUpdate < time || mNextTidalPredictionsUpdate == 0) {
+                    mTidalPredictions = mClient.tides().getPredictions();
+                    mNextTidalPredictionsUpdate = time + TIDES_PREDICTIONS_INTERVAL;
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "tidal predictions update failed", e);
+            }
+        }
+
         private void fetchWeatherForecast(long time) {
             try {
                 if (mNextWeatherForecastUpdate < time || mNextWeatherForecastUpdate == 0) {
@@ -136,6 +142,7 @@ public class UpdateService extends Service {
             fetchSensorsHourlySummary(time);
             fetchWeatherConditions(time);
             fetchWeatherForecast(time);
+            fetchTidalPredictions(time);
 
             return null;
         }
@@ -145,23 +152,23 @@ public class UpdateService extends Service {
             mHandler.postDelayed(mNeedsUpdateRunnable, BASE_INTERVAL);
 
             if (mSensorStatus != null) {
-                UpdateService.this.mSensorsStatus = mSensorStatus;
-                fireSensorStatusDidUpdate();
+                mDelegate.sensorsStatusDidUpdate(mSensorStatus);
             }
 
             if (mWeatherConditions != null) {
-                UpdateService.this.mWeatherConditions = mWeatherConditions;
-                fireWeatherConditionsDidUpdate();
+                mDelegate.weatherConditionsDidUpdate(mWeatherConditions);
             }
 
             if (mSensorsHourlySummary != null) {
-                UpdateService.this.mSensorsHourlySummary = mSensorsHourlySummary;
-                fireSensorHourlySummaryDidUpdate();
+                mDelegate.sensorHourlySummaryDidUpdate(mSensorsHourlySummary);
             }
 
             if (mWeatherHourlyForecast != null) {
-                UpdateService.this.mWeatherHourlyForecast = mWeatherHourlyForecast;
-                fireWeatherForecastDidUpdate();
+                mDelegate.weatherForecastDidUpdate(mWeatherHourlyForecast);
+            }
+
+            if (mTidalPredictions != null) {
+                mDelegate.tidalPredictionsDidUpdate(mTidalPredictions);
             }
         }
     }
@@ -187,56 +194,7 @@ public class UpdateService extends Service {
         super.onDestroy();
     }
 
-    private void fireSensorStatusDidUpdate() {
-        for (int i = 0, n = mListeners.size(); i < n; i++) {
-            mListeners.get(i).sensorsStatusDidUpdate(mSensorsStatus);
-        }
-    }
-
-    private void fireSensorHourlySummaryDidUpdate() {
-        for (int i = 0, n = mListeners.size(); i < n; i++) {
-            mListeners.get(i).sensorHourlySummaryDidUpdate(mSensorsHourlySummary);
-        }
-    }
-
-    private void fireWeatherConditionsDidUpdate() {
-        for (int i = 0, n = mListeners.size(); i < n; i++) {
-            mListeners.get(i).weatherConditionsDidUpdate(mWeatherConditions);
-        }
-    }
-
-    private void fireWeatherForecastDidUpdate() {
-        for (int i = 0, n = mListeners.size(); i < n; i++) {
-            mListeners.get(i).weatherForecastDidUpdate(mWeatherHourlyForecast);
-        }
-    }
-
-    public void addListener(Listener listener) {
-        List<Listener> listeners = new ArrayList<>(mListeners.size() + 1);
-        listeners.addAll(mListeners);
-        listeners.add(listener);
-        mListeners = listeners;
-    }
-
-    public void removeListener(Listener listener) {
-        List<Listener> listeners = new ArrayList<>(mListeners.size()-1);
-        for (int i = 0, n = mListeners.size(); i < n; i++) {
-            Listener l = mListeners.get(i);
-            if (l != listener) {
-                listeners.add(l);
-            }
-        }
-    }
-
-    public Sensors.Status getSensorsStatus() {
-        return mSensorsStatus;
-    }
-
-    public Sensors.HourlySummary getSensorsHourlySummary() {
-        return mSensorsHourlySummary;
-    }
-
-    public Weather.Conditions getWeatherConditions() {
-        return mWeatherConditions;
+    public void setDelegate(Delegate delegate) {
+        mDelegate = delegate;
     }
 }

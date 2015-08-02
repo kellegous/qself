@@ -19,34 +19,31 @@ import java.util.List;
 import kellegous.hud.kellegous.hud.api.Sensors;
 import kellegous.hud.kellegous.hud.api.Weather;
 
-public class MainFragment extends Fragment implements ServiceConnection, UpdateService.Listener {
+public class MainFragment extends Fragment  {
     private static final String TAG = MainFragment.class.getSimpleName();
 
-    private UpdateService mService;
-
     private HeartDataView mHeartDataView;
-
     private WeatherDataView mWeatherDataView;
+    private TidalDataView mTidalDataView;
+
+    private Model mModel;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        getActivity().bindService(
-                new Intent(getActivity(), UpdateService.class),
-                this,
-                Context.BIND_AUTO_CREATE);
+        mModel = Model.create(getActivity());
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
 
-        if (mService != null) {
-            mService.removeListener(this);
+        if (mModel != null) {
+            mModel.destroy();
         }
 
-        getActivity().unbindService(this);
+        mModel = null;
     }
 
     @Override
@@ -62,42 +59,14 @@ public class MainFragment extends Fragment implements ServiceConnection, UpdateS
         });
 
         mHeartDataView = (HeartDataView) view.findViewById(R.id.heart_data_view);
+        mHeartDataView.setModel(mModel);
+
         mWeatherDataView = (WeatherDataView) view.findViewById(R.id.weather_data_view);
+        mWeatherDataView.setModel(mModel);
+
+        mTidalDataView = (TidalDataView) view.findViewById(R.id.tidal_data_view);
+        mTidalDataView.setModel(mModel);
 
         return view;
-    }
-
-    @Override
-    public void onServiceConnected(ComponentName name, IBinder service) {
-        mService = ((UpdateService.Binder)service).getService();
-        mService.addListener(this);
-    }
-
-    @Override
-    public void onServiceDisconnected(ComponentName name) {
-    }
-
-    @Override
-    public void sensorsStatusDidUpdate(Sensors.Status status) {
-        mHeartDataView.updateCurrentData(
-                status.hrt().rate(),
-                status.hrt().variability());
-
-        mWeatherDataView.setIndoorTemperature(status.tmp().temp());
-    }
-
-    @Override
-    public void weatherConditionsDidUpdate(Weather.Conditions conditions) {
-        mWeatherDataView.setCurrentOutdoorConditions(conditions);
-    }
-
-    @Override
-    public void weatherForecastDidUpdate(List<Weather.Conditions> forecast) {
-        mWeatherDataView.setHourlyForecast(forecast);
-    }
-
-    @Override
-    public void sensorHourlySummaryDidUpdate(Sensors.HourlySummary summary) {
-        mHeartDataView.updateHourlyData(summary.hrt());
     }
 }

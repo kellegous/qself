@@ -15,7 +15,7 @@ import java.util.List;
  * A simple API client that provides access to all accumulated dashboard data.
  */
 public class Api {
-    private static class ClientImpl implements ForSensors, ForWeather, Client {
+    private static class ClientImpl implements ForSensors, ForWeather, ForTides, Client {
 
         private final String mOrigin;
 
@@ -43,6 +43,10 @@ public class Api {
             return Sensors.getHourlySummary(mOrigin, start, limit);
         }
 
+        @Override
+        public Tides.Report getPredictions() throws IOException {
+            return Tides.getPredictions(mOrigin);
+        }
 
         @Override
         public ForSensors sensors() {
@@ -53,6 +57,11 @@ public class Api {
         public ForWeather weather() {
             return this;
         }
+
+        @Override
+        public ForTides tides() {
+            return this;
+        }
     }
 
     /**
@@ -61,6 +70,7 @@ public class Api {
     public interface Client {
         ForSensors sensors();
         ForWeather weather();
+        ForTides tides();
     }
 
     public interface ForSensors {
@@ -71,6 +81,10 @@ public class Api {
     public interface ForWeather {
         Weather.Conditions getCurrentConditions() throws IOException;
         List<Weather.Conditions> getHourlyForecast() throws IOException;
+    }
+
+    public interface ForTides {
+        Tides.Report getPredictions() throws IOException;
     }
 
     private Api() {

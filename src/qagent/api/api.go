@@ -12,6 +12,7 @@ import (
 	"qagent/heart"
 	"qagent/store"
 	"qagent/temp"
+	"qagent/tides"
 )
 
 // WriteJSON ...
@@ -192,6 +193,13 @@ func latestWeatherOrError(c *ctx.Context, w http.ResponseWriter, r *http.Request
 	return rep
 }
 
+func timeFromPrediction(p *tides.Prediction) time.Time {
+	if p == nil {
+		return time.Time{}
+	}
+	return p.Time
+}
+
 func apiTides(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	rep := c.Tides.Latest()
 	if rep == nil {
@@ -200,7 +208,23 @@ func apiTides(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Must(WriteJSON(w, rep))
+	now := time.Now()
+	s := now.Add(-1 * time.Hour)
+	e := s.Add(24 * time.Hour)
+
+	res := struct {
+		Predictions  []*tides.Prediction
+		NextHighTide time.Time `json:",omitempty"`
+		NextLowTide  time.Time `json:",omitempty"`
+		Now          time.Time
+	}{
+		rep.FromRange(s, e),
+		timeFromPrediction(rep.NextOfState(now, tides.HighTide)),
+		timeFromPrediction(rep.NextOfState(now, tides.LowTide)),
+		now,
+	}
+
+	Must(WriteJSON(w, &res))
 }
 
 func apiWeatherHourly(c *ctx.Context, w http.ResponseWriter, r *http.Request) {

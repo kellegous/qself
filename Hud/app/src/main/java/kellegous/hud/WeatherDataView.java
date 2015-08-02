@@ -16,10 +16,11 @@ import android.view.ViewGroup;
 import java.util.ArrayList;
 import java.util.List;
 
+import kellegous.hud.kellegous.hud.api.Sensors;
 import kellegous.hud.kellegous.hud.api.Weather;
 
 public class WeatherDataView extends DataView {
-    private static class ImplView extends View {
+    private static class ImplView extends View implements Model.SensorsListener, Model.WeatherListener {
         private static final int VALUE_COLOR = 0xff666666;
         private static final float VALUE_TEXT_SIZE = 96f;
 
@@ -305,6 +306,33 @@ public class WeatherDataView extends DataView {
 
             drawForecast(canvas, indoorEndsAt + iconWidth + 2*valueWidth);
         }
+
+        @Override
+        public void sensorsStatusDidUpdate(Sensors.Status status) {
+            mIndoorTemp = toDegreeString(status.tmp().temp());
+            invalidate();
+        }
+
+        @Override
+        public void sensorsHourlySummaryDidUpdate(Sensors.HourlySummary summary) {
+
+        }
+
+        @Override
+        public void weatherConditionsDidUpdate(Weather.Conditions conditions) {
+            mOutdoorTemp = toDegreeString(conditions.temp());
+            mOutdoorFeels = toDegreeString(conditions.apparentTemp());
+            mOutdoorIcon = toIconString(conditions.icon());
+            mOutdoorSummary = conditions.summary().toUpperCase();
+            invalidate();
+
+        }
+
+        @Override
+        public void weatherForecastDidUpdate(List<Weather.Conditions> forecast) {
+            mHourlyForecast = forecast;
+            invalidate();
+        }
     }
 
     private static final String[] sIconToStringMap = buildIconToStringMap();
@@ -371,21 +399,8 @@ public class WeatherDataView extends DataView {
         return sIconToStringMap[icon];
     }
 
-    public void setIndoorTemperature(double temp) {
-        mView.mIndoorTemp = toDegreeString(temp);
-        mView.invalidate();
-    }
-
-    public void setCurrentOutdoorConditions(Weather.Conditions conditions) {
-        mView.mOutdoorTemp = toDegreeString(conditions.temp());
-        mView.mOutdoorFeels = toDegreeString(conditions.apparentTemp());
-        mView.mOutdoorIcon = toIconString(conditions.icon());
-        mView.mOutdoorSummary = conditions.summary().toUpperCase();
-        mView.invalidate();
-    }
-
-    public void setHourlyForecast(List<Weather.Conditions> forecast) {
-        mView.mHourlyForecast = forecast;
-        mView.invalidate();
+    public void setModel(Model model) {
+        model.sensors().tap(mView);
+        model.weather().tap(mView);
     }
 }

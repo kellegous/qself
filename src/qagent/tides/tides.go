@@ -168,6 +168,41 @@ type Report struct {
 	Predictions []*Prediction
 }
 
+// FromRange ...
+func (r *Report) FromRange(s, e time.Time) []*Prediction {
+	prds := r.Predictions
+	for len(prds) > 0 && prds[0].Time.Before(s) {
+		prds = prds[1:]
+	}
+
+	for i, n := 0, len(prds); i < n; i++ {
+		if prds[i].Time.After(e) {
+			return prds[:i]
+		}
+	}
+
+	return prds
+}
+
+// AllAfter ...
+func (r *Report) AllAfter(t time.Time) []*Prediction {
+	prds := r.Predictions
+	for len(prds) > 0 && prds[0].Time.Before(t) {
+		prds = prds[1:]
+	}
+	return prds
+}
+
+// NextOfState ...
+func (r *Report) NextOfState(now time.Time, s State) *Prediction {
+	for _, pred := range r.Predictions {
+		if pred.State == s && pred.Time.After(now) {
+			return pred
+		}
+	}
+	return nil
+}
+
 type service struct {
 	r *Report
 	m sync.RWMutex

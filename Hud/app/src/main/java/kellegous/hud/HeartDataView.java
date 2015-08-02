@@ -11,7 +11,7 @@ import java.util.List;
 
 import kellegous.hud.kellegous.hud.api.Sensors;
 
-public class HeartDataView extends DataView {
+public class HeartDataView extends DataView implements Model.SensorsListener {
     private MetricHistoryView mHrtView;
     private MetricHistoryView mHrvView;
 
@@ -46,12 +46,16 @@ public class HeartDataView extends DataView {
         return view;
     }
 
-    public void updateCurrentData(double hrt, double hrv) {
-        mHrtView.setValue((int)Math.round(hrt));
-        mHrvView.setValue((int)Math.round(hrv));
+    @Override
+    public void sensorsStatusDidUpdate(Sensors.Status status) {
+        mHrtView.setValue((int)Math.round(status.hrt().rate()));
+        mHrvView.setValue((int)Math.round(status.hrt().variability()));
     }
 
-    public void updateHourlyData(List<Sensors.HourlySummary.Hrt> vals) {
+    @Override
+    public void sensorsHourlySummaryDidUpdate(Sensors.HourlySummary summary) {
+        List<Sensors.HourlySummary.Hrt> vals = summary.hrt();
+
         int n = vals.size();
         String[] labels = new String[n];
         double[] hrt = new double[n];
@@ -66,5 +70,9 @@ public class HeartDataView extends DataView {
 
         mHrtView.setData(labels, hrt);
         mHrvView.setData(labels, hrv);
+    }
+
+    public void setModel(Model model) {
+        model.sensors().tap(this);
     }
 }
