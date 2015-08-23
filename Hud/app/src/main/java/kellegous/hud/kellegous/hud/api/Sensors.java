@@ -8,7 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Sensors {
-    public static class HourlySummary {
+
+    public static class Summary {
+        public static final int TYPE_HOURLY = 0;
+        public static final int TYPE_MINUTELY = 1;
+
         public static class Hrt {
             private Time mTime = new Time(Api.timeZero);
             private double mHr;
@@ -100,8 +104,13 @@ public class Sensors {
             }
         }
 
+        private int mSummaryType;
         private List<Tmp> mTmp = new ArrayList<>();
         private List<Hrt> mHrt = new ArrayList<>();
+
+        private Summary(int summaryType) {
+            mSummaryType = summaryType;
+        }
 
         public List<Tmp> tmp() {
             return mTmp;
@@ -111,7 +120,11 @@ public class Sensors {
             return mHrt;
         }
 
-        private static HourlySummary parse(JsonReader r, HourlySummary summary) throws IOException {
+        public int summaryType() {
+            return mSummaryType;
+        }
+
+        private static Summary parse(JsonReader r, Summary summary) throws IOException {
             r.beginObject();
             while (r.hasNext()) {
                 String name = r.nextName();
@@ -239,11 +252,21 @@ public class Sensors {
         }
     }
 
-    public static HourlySummary getHourlySummary(String origin, int start, int limit) throws IOException {
+    public static Summary getMinutelySummary(String origin, int start, int limit) throws IOException {
+        JsonReader r = Api.fetchJson(
+                String.format("%s/api/sensors/minutely/all?start=%d&limit=%d", origin, start, limit));
+        try {
+            return Summary.parse(r, new Summary(Summary.TYPE_MINUTELY));
+        } finally {
+            r.close();
+        }
+    }
+
+    public static Summary getHourlySummary(String origin, int start, int limit) throws IOException {
         JsonReader r = Api.fetchJson(
                 String.format("%s/api/sensors/hourly/all?start=%d&limit=%d", origin, start, limit));
         try {
-            return HourlySummary.parse(r, new HourlySummary());
+            return Summary.parse(r, new Summary(Summary.TYPE_HOURLY));
         } finally {
             r.close();
         }

@@ -15,6 +15,20 @@ import (
 	"qagent/tides"
 )
 
+var hourly = &grouper{
+	d: time.Hour,
+	f: func(s time.Time, t time.Time) int {
+		return int(t.Sub(s).Hours())
+	},
+}
+
+var minutely = &grouper{
+	d: time.Minute,
+	f: func(s time.Time, t time.Time) int {
+		return int(t.Sub(s).Seconds() / 60)
+	},
+}
+
 // WriteJSON ...
 func WriteJSON(w http.ResponseWriter, data interface{}) error {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
@@ -35,6 +49,62 @@ func intParamFrom(r *http.Request, name string, def int) int {
 		return def
 	}
 	return int(i)
+}
+
+type grouper struct {
+	d time.Duration
+	f func(s time.Time, t time.Time) int
+}
+
+func (g *grouper) IndexFor(s time.Time, t time.Time) int {
+	return g.f(s, t)
+}
+
+func groupBy(
+	g *grouper,
+	c *store.Collection,
+	startN, limitN int,
+	fn func(ix int, t time.Time, v []uint16) error) error {
+	start := time.Now().Truncate(g.d).Add(-time.Duration(startN+limitN) * g.d)
+	limit := start.Add(time.Duration(limitN) * g.d)
+
+	cix := 0
+	var sam []uint16
+
+	if err := c.ForEachInRange(
+		start,
+		limit,
+		func(t time.Time, v uint16) error {
+			ix := g.IndexFor(start, t)
+			if cix == ix {
+				sam = append(sam, v)
+				return nil
+			}
+
+			for cix < ix {
+				if err := fn(cix, start.Add(time.Duration(cix)*g.d), sam); err != nil {
+					return err
+				}
+
+				cix++
+				sam = sam[:0]
+			}
+
+			return nil
+		}); err != nil {
+		return err
+	}
+
+	for cix < limitN {
+		if err := fn(cix, start.Add(time.Duration(cix)*g.d), sam); err != nil {
+			return err
+		}
+
+		cix++
+		sam = sam[:0]
+	}
+
+	return nil
 }
 
 func eachHour(c *store.Collection, startN, limitN int, fn func(ix int, t time.Time, v []uint16) error) error {
@@ -80,16 +150,26 @@ func eachHour(c *store.Collection, startN, limitN int, fn func(ix int, t time.Ti
 	return nil
 }
 
-type hourlyHrt struct {
+type hrtGroup struct {
 	Time  time.Time
 	Hr    float64
 	Hrv   float64
 	Count int
 }
 
-func getHourlyHrt(c *ctx.Context, start, limit int) ([]hourlyHrt, error) {
-	res := make([]hourlyHrt, limit)
-	if err := eachHour(
+type tmpGroup struct {
+	Time  time.Time
+	Temp  float64
+	Count int
+}
+
+func getHrtGroups(
+	c *ctx.Context,
+	g *grouper,
+	start, limit int) ([]hrtGroup, error) {
+	res := make([]hrtGroup, limit)
+	if err := groupBy(
+		g,
 		c.Store().Hrt(),
 		start,
 		limit,
@@ -108,28 +188,17 @@ func getHourlyHrt(c *ctx.Context, start, limit int) ([]hourlyHrt, error) {
 		}); err != nil {
 		return nil, err
 	}
+
 	return res, nil
 }
 
-func apiHourlyHrt(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
-	res, err := getHourlyHrt(c,
-		intParamFrom(r, "start", 0),
-		intParamFrom(r, "limit", 10))
-	if err != nil {
-		log.Panic(err)
-	}
-	Must(WriteJSON(w, &res))
-}
-
-type hourlyTmp struct {
-	Time  time.Time
-	Temp  float64
-	Count int
-}
-
-func getHourlyTmp(c *ctx.Context, start, limit int) ([]hourlyTmp, error) {
-	res := make([]hourlyTmp, limit)
-	if err := eachHour(
+func getTmpGroups(
+	c *ctx.Context,
+	g *grouper,
+	start, limit int) ([]tmpGroup, error) {
+	res := make([]tmpGroup, limit)
+	if err := groupBy(
+		g,
 		c.Store().Tmp(),
 		start,
 		limit,
@@ -141,7 +210,6 @@ func getHourlyTmp(c *ctx.Context, start, limit int) ([]hourlyTmp, error) {
 			if n == 0 {
 				return nil
 			}
-
 			res[ix].Temp = temp.Average(vals)
 			return nil
 		}); err != nil {
@@ -150,8 +218,18 @@ func getHourlyTmp(c *ctx.Context, start, limit int) ([]hourlyTmp, error) {
 	return res, nil
 }
 
-func apiHourlyTmp(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
-	res, err := getHourlyTmp(c,
+func apiGroupHrt(c *ctx.Context, g *grouper, w http.ResponseWriter, r *http.Request) {
+	res, err := getHrtGroups(c, g,
+		intParamFrom(r, "start", 0),
+		intParamFrom(r, "limit", 10))
+	if err != nil {
+		log.Panic(err)
+	}
+	Must(WriteJSON(w, &res))
+}
+
+func apiGroupTmp(c *ctx.Context, g *grouper, w http.ResponseWriter, r *http.Request) {
+	res, err := getTmpGroups(c, g,
 		intParamFrom(r, "start", 0),
 		intParamFrom(r, "limit", 10))
 	if err != nil {
@@ -161,21 +239,21 @@ func apiHourlyTmp(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO(knorton): The intent is to do this in parallel.
-func apiHourlyAll(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
+func apiGroupAll(c *ctx.Context, g *grouper, w http.ResponseWriter, r *http.Request) {
 	start := intParamFrom(r, "start", 0)
 	limit := intParamFrom(r, "limit", 10)
-	tmp, err := getHourlyTmp(c, start, limit)
+	tmp, err := getTmpGroups(c, g, start, limit)
 	if err != nil {
 		log.Panic(err)
 	}
-	hrt, err := getHourlyHrt(c, start, limit)
+	hrt, err := getHrtGroups(c, g, start, limit)
 	if err != nil {
 		log.Panic(err)
 	}
 
 	res := struct {
-		Tmp []hourlyTmp
-		Hrt []hourlyHrt
+		Tmp []tmpGroup
+		Hrt []hrtGroup
 	}{
 		tmp,
 		hrt,
@@ -200,6 +278,24 @@ func timeFromPrediction(p *tides.Prediction) time.Time {
 	return p.Time
 }
 
+func indexOfFirstAfter(prds []*tides.Prediction, t time.Time) int {
+	for i, n := 0, len(prds); i < n; i++ {
+		if prds[i].Time.After(t) {
+			return i
+		}
+	}
+	return -1
+}
+
+func indexOfFirstWithState(prds []*tides.Prediction, s tides.State) int {
+	for i, n := 0, len(prds); i < n; i++ {
+		if prds[i].State == s {
+			return i
+		}
+	}
+	return -1
+}
+
 func apiTides(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	rep := c.Tides.Latest()
 	if rep == nil {
@@ -209,19 +305,18 @@ func apiTides(c *ctx.Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	s := now.Add(-1 * time.Hour)
-	e := s.Add(24 * time.Hour)
+	prds := rep.FromRange(now.Add(-1*time.Hour), now.Add(23*time.Hour))
 
 	res := struct {
 		Predictions  []*tides.Prediction
-		NextHighTide time.Time `json:",omitempty"`
-		NextLowTide  time.Time `json:",omitempty"`
-		Now          time.Time
+		NextHighTide int
+		NextLowTide  int
+		Now          int
 	}{
-		rep.FromRange(s, e),
-		timeFromPrediction(rep.NextOfState(now, tides.HighTide)),
-		timeFromPrediction(rep.NextOfState(now, tides.LowTide)),
-		now,
+		prds,
+		indexOfFirstWithState(prds, tides.HighTide),
+		indexOfFirstWithState(prds, tides.LowTide),
+		indexOfFirstAfter(prds, now),
 	}
 
 	Must(WriteJSON(w, &res))
@@ -254,15 +349,27 @@ func Setup(m *http.ServeMux, c *ctx.Context) {
 	})
 
 	m.HandleFunc("/api/sensors/hourly/hrt", func(w http.ResponseWriter, r *http.Request) {
-		apiHourlyHrt(c, w, r)
+		apiGroupHrt(c, hourly, w, r)
+	})
+
+	m.HandleFunc("/api/sensors/minutely/hrt", func(w http.ResponseWriter, r *http.Request) {
+		apiGroupHrt(c, minutely, w, r)
 	})
 
 	m.HandleFunc("/api/sensors/hourly/tmp", func(w http.ResponseWriter, r *http.Request) {
-		apiHourlyTmp(c, w, r)
+		apiGroupTmp(c, hourly, w, r)
+	})
+
+	m.HandleFunc("/api/sensors/minutely/tmp", func(w http.ResponseWriter, r *http.Request) {
+		apiGroupTmp(c, minutely, w, r)
 	})
 
 	m.HandleFunc("/api/sensors/hourly/all", func(w http.ResponseWriter, r *http.Request) {
-		apiHourlyAll(c, w, r)
+		apiGroupAll(c, hourly, w, r)
+	})
+
+	m.HandleFunc("/api/sensors/minutely/all", func(w http.ResponseWriter, r *http.Request) {
+		apiGroupAll(c, minutely, w, r)
 	})
 
 	m.HandleFunc("/api/weather/current", func(w http.ResponseWriter, r *http.Request) {

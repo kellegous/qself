@@ -41,11 +41,11 @@
             android:layout_height="match_parent"
             android:layout_weight="1"/>
 
-        <kellegous.hud.EmptyDataView
+        <kellegous.hud.NewHeartDataView
+            android:id="@+id/new_heart_data_view"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"/>
-
     </LinearLayout>
 
     <View

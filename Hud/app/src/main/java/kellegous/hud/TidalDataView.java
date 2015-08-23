@@ -4,9 +4,12 @@ import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.text.format.Time;
 import android.util.AttributeSet;
@@ -14,6 +17,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.text.DecimalFormat;
 import java.util.List;
 
 import kellegous.hud.kellegous.hud.api.Tides;
@@ -24,26 +28,34 @@ public class TidalDataView extends DataView {
 
         private static final int DEPTH_GRAPH_COLOR = 0xff0099ff;
         private static final float GRAPH_VALUE_WIDTH = 2f;
+        private static final float DATA_LABEL_TEXT_SIZE = 12f;
 
         private static final int GRAPH_MARKER_COLOR = 0xffeeeeee;
+        private static final float GRAPH_MARKER_TEXT_SIZE = 18f;
         private static final float GRAPH_MARKER_WIDTH = 1f;
 
-        private static final int GRAPH_NOW_COLOR = 0xff999999;
+        private static final int GRAPH_LABEL_COLOR = 0xff999999;
+        private static final float GRAPH_LABEL_TEXT_SIZE = 12f;
+        private static final float GRAPH_LABEL_WIDTH = 2f;
 
         private static final int VIEW_PADDING = 32;
+
+        private static final DecimalFormat DEPTH_FORMAT = new DecimalFormat("0.0");
 
         private Tides.Report mReport = new Tides.Report();
 
         private RectF mViewRect = new RectF();
         private float mMinValue;
         private float mMaxValue;
+        private float mLabelBaseline;
 
-        private Paint mDepthGraphPaint;
+        private Paint mGraphDataPaint;
+        private Paint mGraphNowFillPaint;
+        private Paint mGraphNowStrokePaint;
+        private Paint mGraphNowBackFillPaint;
+        private Paint mGraphNowLabelPaint;
         private Paint mGraphMarkerPaint;
-        private Paint mGraphNowPaint;
-
-        private Paint mDebugFillPaint;
-        private Paint mDebugStrokePaint;
+        private Paint mGraphLabelPaint;
 
         public ImplView(Context context) {
             super(context);
@@ -67,26 +79,46 @@ public class TidalDataView extends DataView {
         }
 
         private void init(Context context) {
-            mDepthGraphPaint = new Paint(0);
-            mDepthGraphPaint.setColor(DEPTH_GRAPH_COLOR);
-            mDepthGraphPaint.setStyle(Paint.Style.STROKE);
-            mDepthGraphPaint.setStrokeWidth(GRAPH_VALUE_WIDTH);
-            mDepthGraphPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+            Typeface roboCondReg = Typefaces.load(context, Typefaces.RobotoCondensedRegular);
+
+            mGraphDataPaint = new Paint(0);
+            mGraphDataPaint.setColor(DEPTH_GRAPH_COLOR);
+            mGraphDataPaint.setStyle(Paint.Style.STROKE);
+            mGraphDataPaint.setStrokeWidth(GRAPH_VALUE_WIDTH);
+            mGraphDataPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+
+            mGraphNowFillPaint = new Paint(0);
+            mGraphNowFillPaint.setColor(DEPTH_GRAPH_COLOR);
+            mGraphNowFillPaint.setStyle(Paint.Style.FILL);
+            mGraphNowFillPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+
+            mGraphNowStrokePaint = new Paint(0);
+            mGraphNowStrokePaint.setColor(DEPTH_GRAPH_COLOR);
+            mGraphNowStrokePaint.setStyle(Paint.Style.STROKE);
+            mGraphNowStrokePaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+            mGraphNowStrokePaint.setStrokeWidth(1f);
+
+            mGraphNowBackFillPaint = new Paint(0);
+            mGraphNowBackFillPaint.setColor(Color.WHITE);
+            mGraphNowBackFillPaint.setStyle(Paint.Style.FILL);
+
+            mGraphNowLabelPaint = new Paint(0);
+            mGraphNowLabelPaint.setColor(DEPTH_GRAPH_COLOR);
+            mGraphNowLabelPaint.setTextSize(DATA_LABEL_TEXT_SIZE);
+            mGraphNowLabelPaint.setTypeface(roboCondReg);
 
             mGraphMarkerPaint = new Paint(0);
             mGraphMarkerPaint.setColor(GRAPH_MARKER_COLOR);
             mGraphMarkerPaint.setStyle(Paint.Style.STROKE);
             mGraphMarkerPaint.setStrokeWidth(GRAPH_MARKER_WIDTH);
+            mGraphMarkerPaint.setTextSize(GRAPH_MARKER_TEXT_SIZE);
 
-            mGraphNowPaint = new Paint(0);
-            mGraphNowPaint.setColor(GRAPH_NOW_COLOR);
-
-            mDebugFillPaint = new Paint(0);
-            mDebugFillPaint.setColor(0x11ffff00);
-
-            mDebugStrokePaint = new Paint(0);
-            mDebugStrokePaint.setColor(0x66ff0000);
-            mDebugStrokePaint.setStyle(Paint.Style.STROKE);
+            mGraphLabelPaint = new Paint(0);
+            mGraphLabelPaint.setColor(GRAPH_LABEL_COLOR);
+            mGraphLabelPaint.setTextSize(GRAPH_LABEL_TEXT_SIZE);
+            mGraphLabelPaint.setTypeface(roboCondReg);
+            mGraphLabelPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+            mGraphLabelPaint.setStrokeWidth(GRAPH_LABEL_WIDTH);
         }
 
         @Override
@@ -95,7 +127,12 @@ public class TidalDataView extends DataView {
 
             float padding = Dimens.dpToPx(getResources(), VIEW_PADDING);
 
-            mViewRect.set(0, padding, getWidth(), getHeight() - padding);
+            Paint.FontMetrics labelMetrics = mGraphLabelPaint.getFontMetrics();
+
+            // determine the rect that encloses the actual graph
+            mViewRect.set(0, padding, getWidth(), getHeight() - padding + labelMetrics.top);
+
+            mLabelBaseline = getHeight() - padding;
 
             float max = Float.MIN_VALUE, min = Float.MAX_VALUE;
             List<Tides.Prediction> predictions = mReport.predictions();
@@ -128,6 +165,7 @@ public class TidalDataView extends DataView {
             super.onDraw(canvas);
 
             Resources resources = getResources();
+            Rect rect = new Rect();
 
             float padding = Dimens.dpToPx(resources, VIEW_PADDING);
 
@@ -136,18 +174,8 @@ public class TidalDataView extends DataView {
                 return;
             }
 
-            float rangeInSeconds = secondsSpanning(predictions);
-
             float dy = mViewRect.height() / (mMaxValue - mMinValue);
             float dx = (float)getWidth() / predictions.size();
-            float dt = getWidth() / rangeInSeconds;
-
-            canvas.drawRect(
-                    dt * secondsBetween(predictions.get(0).time(), mReport.now()),
-                    padding,
-                    dt * secondsBetween(predictions.get(0).time(), mReport.now()) + 6*60*dt,
-                    getHeight() - padding,
-                    mGraphNowPaint);
 
             for (int i = 0, n = predictions.size(); i < n; i++) {
                 Tides.Prediction prediction = predictions.get(i);
@@ -155,37 +183,80 @@ public class TidalDataView extends DataView {
                     continue;
                 }
 
-                canvas.drawLine(
-                        dx*i + dx/2f,
-                        padding,
-                        dx*i + dx/2f,
-                        getHeight() - padding,
-                        mGraphMarkerPaint);
+                float x = dx*i + dx / 2f;
+
+                canvas.drawLine(x, padding, x, mViewRect.bottom, mGraphMarkerPaint);
+                String text = prediction.time().format("%H");
+                mGraphMarkerPaint.getTextBounds(text, 0, text.length(), rect);
+                float tx = x - rect.width() / 2f;
+                if (tx > 0) {
+                    canvas.drawText(text, tx, mLabelBaseline, mGraphLabelPaint);
+                }
             }
 
             Path path = new Path();
             path.moveTo(0,
-                    padding + + mViewRect.height() - ((float) predictions.get(0).value() - mMinValue) * dy);
+                    padding + + mViewRect.height() - (predictions.get(0).value() - mMinValue) * dy);
             for (int i = 1, n = predictions.size(); i < n; i++) {
                 Tides.Prediction prediction = predictions.get(i);
                 path.lineTo(
                         dx * i + dx / 2f,
-                        padding + mViewRect.height() - ((float) prediction.value() - mMinValue) * dy);
+                        padding + mViewRect.height() - (prediction.value() - mMinValue) * dy);
             }
-            canvas.drawPath(path, mDepthGraphPaint);
+            canvas.drawPath(path, mGraphDataPaint);
+
+            drawNowHighlight(canvas, resources, padding, dx, dy, rect);
 
             if (DEBUG) {
-                canvas.drawLine(0, mViewRect.top, getWidth(), mViewRect.top, mDebugStrokePaint);
-                canvas.drawLine(0, mViewRect.bottom, getWidth(), mViewRect.bottom, mDebugStrokePaint);
+                Debug.hline(canvas, 0, getWidth(), mViewRect.top);
+                Debug.hline(canvas, 0, getWidth(), mViewRect.bottom);
+                Debug.hline(canvas, 0, getWidth(), mLabelBaseline);
             }
+        }
+
+        private void drawNowHighlight(Canvas canvas,
+                                      Resources resources,
+                                      float offsetY,
+                                      float dx,
+                                      float dy,
+                                      Rect rect) {
+            int indexOfNow = mReport.indexOfNow();
+            if (indexOfNow == -1) {
+                return;
+            }
+
+            List<Tides.Prediction> predictions = mReport.predictions();
+            Tides.Prediction now = predictions.get(indexOfNow);
+            float cx = dx * indexOfNow + dx / 2f;
+            float cy = offsetY + mViewRect.height() - dy * (now.value() - mMinValue);
+
+            canvas.drawCircle(cx, cy, Dimens.dpToPx(resources, 8), mGraphNowBackFillPaint);
+            canvas.drawCircle(cx, cy, Dimens.dpToPx(resources, 3), mGraphNowFillPaint);
+            canvas.drawCircle(cx, cy, Dimens.dpToPx(resources, 8), mGraphDataPaint);
+
+            String text = String.format("%s ft", DEPTH_FORMAT.format(now.value()));
+            mGraphLabelPaint.getTextBounds(text, 0, text.length(), rect);
+
+            float py = (now.value() - mMinValue) / (mMaxValue - mMinValue);
+            float tx, ty;
+            if (py > 0.85) {
+                tx = cx - rect.width() / 2f;
+                ty = cy + Dimens.dpToPx(resources, 16) + rect.height() / 2f;
+            } else if (py < 0.15) {
+                tx = cx - rect.width() / 2f;
+                ty = cy - Dimens.dpToPx(resources, 16);
+            } else {
+                tx = cx + Dimens.dpToPx(resources, 16);
+                ty = cy;
+            }
+            canvas.drawText(text, tx, ty, mGraphNowLabelPaint);
         }
 
         @Override
         public void tidalPredictionsDidUpdate(Tides.Report report) {
-            List<Tides.Prediction> predictions = report.predictions();
-
             mReport = report;
             requestLayout();
+            invalidate();
         }
     }
 

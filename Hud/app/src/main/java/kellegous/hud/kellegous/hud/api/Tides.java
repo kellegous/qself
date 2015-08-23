@@ -16,14 +16,14 @@ public class Tides {
 
     public static class Prediction {
         private Time mTime = new Time(Api.timeZero);
-        private double mValue;
+        private float mValue;
         private int mState;
 
         public Time time() {
             return mTime;
         }
 
-        public double value() {
+        public float value() {
             return mValue;
         }
 
@@ -38,7 +38,7 @@ public class Tides {
                 if (name.equals("Time")) {
                     Api.parseTime(r.nextString(), p.mTime);
                 } else if (name.equals("Value")) {
-                    p.mValue = r.nextDouble();
+                    p.mValue = (float)r.nextDouble();
                 } else if (name.equals("State")) {
                     p.mState = r.nextInt();
                 } else {
@@ -51,21 +51,33 @@ public class Tides {
     }
 
     public static class Report {
-        private Time mNextHighTide = new Time(Api.timeZero);
-        private Time mNextLowTide = new Time(Api.timeZero);
-        private Time mNow = new Time(Api.timeZero);
+        private int mNextHighTide = -1;
+        private int mNextLowTide = -1;
+        private int mNow = -1;
         private List<Prediction> mPredictions = new ArrayList<>();
 
-        public Time nextHighTide() {
+        public int indexOfNextHighTide() {
             return mNextHighTide;
         }
 
-        public Time nextLowTide() {
+        public Prediction nextHighTide() {
+            return (mNextHighTide != -1) ? mPredictions.get(mNextHighTide) : null;
+        }
+
+        public int indexOfNextLowTide() {
             return mNextLowTide;
         }
 
-        public Time now() {
+        public Prediction nextLowTide() {
+            return (mNextLowTide != -1) ? mPredictions.get(mNextLowTide) : null;
+        }
+
+        public int indexOfNow() {
             return mNow;
+        }
+
+        public Prediction now() {
+            return (mNow != -1) ? mPredictions.get(mNow) : null;
         }
 
         public List<Prediction> predictions() {
@@ -87,11 +99,11 @@ public class Tides {
                 if (name.equals("Predictions")) {
                     parsePredictions(r, report.mPredictions);
                 } else if (name.equals("NextHighTide")) {
-                    Api.parseTime(r.nextString(), report.mNextHighTide);
+                    report.mNextHighTide = r.nextInt();
                 } else if (name.equals("NextLowTide")) {
-                    Api.parseTime(r.nextString(), report.mNextLowTide);
+                    report.mNextLowTide = r.nextInt();
                 } else if (name.equals("Now")) {
-                    Api.parseTime(r.nextString(), report.mNow);
+                    report.mNow = r.nextInt();
                 } else {
                     r.skipValue();
                 }

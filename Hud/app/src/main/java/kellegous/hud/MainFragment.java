@@ -22,10 +22,6 @@ import kellegous.hud.kellegous.hud.api.Weather;
 public class MainFragment extends Fragment  {
     private static final String TAG = MainFragment.class.getSimpleName();
 
-    private HeartDataView mHeartDataView;
-    private WeatherDataView mWeatherDataView;
-    private TidalDataView mTidalDataView;
-
     private Model mModel;
 
     @Override
@@ -58,14 +54,10 @@ public class MainFragment extends Fragment  {
             }
         });
 
-        mHeartDataView = (HeartDataView) view.findViewById(R.id.heart_data_view);
-        mHeartDataView.setModel(mModel);
-
-        mWeatherDataView = (WeatherDataView) view.findViewById(R.id.weather_data_view);
-        mWeatherDataView.setModel(mModel);
-
-        mTidalDataView = (TidalDataView) view.findViewById(R.id.tidal_data_view);
-        mTidalDataView.setModel(mModel);
+        ((HeartDataView) view.findViewById(R.id.heart_data_view)).setModel(mModel);
+        ((WeatherDataView) view.findViewById(R.id.weather_data_view)).setModel(mModel);
+        ((TidalDataView) view.findViewById(R.id.tidal_data_view)).setModel(mModel);
+        ((NewHeartDataView) view.findViewById(R.id.new_heart_data_view)).setModel(mModel);
 
         return view;
     }

@@ -5,7 +5,6 @@ import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 
 import java.util.List;
 
@@ -53,8 +52,12 @@ public class HeartDataView extends DataView implements Model.SensorsListener {
     }
 
     @Override
-    public void sensorsHourlySummaryDidUpdate(Sensors.HourlySummary summary) {
-        List<Sensors.HourlySummary.Hrt> vals = summary.hrt();
+    public void sensorsMinutelySummaryDidUpdate(Sensors.Summary summary) {
+    }
+
+    @Override
+    public void sensorsHourlySummaryDidUpdate(Sensors.Summary summary) {
+        List<Sensors.Summary.Hrt> vals = summary.hrt();
 
         int n = vals.size();
         String[] labels = new String[n];
@@ -62,7 +65,7 @@ public class HeartDataView extends DataView implements Model.SensorsListener {
         double[] hrv = new double[n];
 
         for (int i = 0; i < n; i++) {
-            Sensors.HourlySummary.Hrt h = vals.get(i);
+            Sensors.Summary.Hrt h = vals.get(i);
             hrt[n - i - 1] = h.rate();
             hrv[n - i - 1] = h.variability();
             labels[n - i - 1] = h.time().format("%H");

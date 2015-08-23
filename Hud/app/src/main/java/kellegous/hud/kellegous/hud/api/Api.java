@@ -4,8 +4,12 @@ import android.text.format.Time;
 import android.util.JsonReader;
 
 import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpConnectionParams;
+import org.apache.http.params.HttpParams;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -39,8 +43,13 @@ public class Api {
         }
 
         @Override
-        public Sensors.HourlySummary getHourlySummary(int start, int limit) throws IOException{
+        public Sensors.Summary getHourlySummary(int start, int limit) throws IOException{
             return Sensors.getHourlySummary(mOrigin, start, limit);
+        }
+
+        @Override
+        public Sensors.Summary getMinutelySummary(int start, int limit) throws IOException {
+            return Sensors.getMinutelySummary(mOrigin, start, limit);
         }
 
         @Override
@@ -75,7 +84,8 @@ public class Api {
 
     public interface ForSensors {
         Sensors.Status getStatus() throws IOException;
-        Sensors.HourlySummary getHourlySummary(int start, int limit) throws IOException;
+        Sensors.Summary getHourlySummary(int start, int limit) throws IOException;
+        Sensors.Summary getMinutelySummary(int start, int limit) throws IOException;
     }
 
     public interface ForWeather {
@@ -94,8 +104,15 @@ public class Api {
         return new ClientImpl(origin);
     }
 
+    private static HttpClient clientWithTimeout() {
+        HttpParams params = new BasicHttpParams();
+        HttpConnectionParams.setConnectionTimeout(params, 3600);
+        HttpConnectionParams.setSoTimeout(params, 3600);
+        return new DefaultHttpClient(params);
+    }
+
     static JsonReader fetchJson(String url) throws IOException {
-        HttpResponse res = new DefaultHttpClient().execute(new HttpGet(url));
+        HttpResponse res = clientWithTimeout().execute(new HttpGet(url));
         return new JsonReader(new InputStreamReader(res.getEntity().getContent(), "UTF-8"));
     }
 

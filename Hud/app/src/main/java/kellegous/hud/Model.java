@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +34,8 @@ public class Model {
 
     public interface SensorsListener {
         void sensorsStatusDidUpdate(Sensors.Status status);
-        void sensorsHourlySummaryDidUpdate(Sensors.HourlySummary summary);
+        void sensorsMinutelySummaryDidUpdate(Sensors.Summary summary);
+        void sensorsHourlySummaryDidUpdate(Sensors.Summary summary);
     }
 
     public interface WeatherListener {
@@ -75,7 +77,17 @@ public class Model {
         }
 
         @Override
-        public void sensorHourlySummaryDidUpdate(Sensors.HourlySummary summary) {
+        public void sensorsMinutelySummaryDidUpdate(Sensors.Summary summary) {
+            mFiringEvents = true;
+            List<SensorsListener> listeners = mSensorsListeners;
+            for (int i = 0, n = listeners.size(); i < n; i++) {
+                listeners.get(i).sensorsMinutelySummaryDidUpdate(summary);
+            }
+            mFiringEvents = false;
+        }
+
+        @Override
+        public void sensorHourlySummaryDidUpdate(Sensors.Summary summary) {
             mFiringEvents = true;
             List<SensorsListener> listeners = mSensorsListeners;
             for (int i = 0, n = listeners.size(); i < n; i++) {
@@ -106,6 +118,7 @@ public class Model {
 
         @Override
         public void tidalPredictionsDidUpdate(Tides.Report report) {
+            Log.d(getClass().getSimpleName(), String.format("tides did update: %s", report.now().time().format("%H:%M")));
             mFiringEvents = true;
             List<TidalListener> listeners = mTidalListeners;
             for (int i = 0, n = listeners.size(); i < n; i++) {

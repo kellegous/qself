@@ -22,10 +22,12 @@ public class UpdateService extends Service {
     private static final int BASE_INTERVAL = 10*1000;
     private static final int WEATHER_CONDITIONS_INTERVAL = 30*1000;
     private static final int WEATHER_FORECAST_INTERVAL = 5*1000*60;
+    private static final int SENSOR_MINUTELY_SUMMARY_INTERVAL = 20*1000;
     private static final int SENSOR_HOURLY_SUMMARY_INTERVAL = 5*1000*60;
     private static final int TIDES_PREDICTIONS_INTERVAL = 6*1000*60;
 
     private static final int HOURS_IN_HOURLY = 24;
+    private static final int MINUTES_IN_MINUTELY = 30;
 
     private String mOrigin = "http://flint.kellego.us:8077";
 
@@ -45,13 +47,15 @@ public class UpdateService extends Service {
     // Used in UpdateTask
     private Api.Client mClient = Api.create(mOrigin);
     private long mNextWeatherConditionsUpdate;
+    private long mNextSensorMinutelySummaryUpdate;
     private long mNextSensorHourlySummaryUpdate;
     private long mNextWeatherForecastUpdate;
     private long mNextTidalPredictionsUpdate;
 
     public interface Delegate {
         void sensorsStatusDidUpdate(Sensors.Status status);
-        void sensorHourlySummaryDidUpdate(Sensors.HourlySummary summary);
+        void sensorsMinutelySummaryDidUpdate(Sensors.Summary summary);
+        void sensorHourlySummaryDidUpdate(Sensors.Summary summary);
 
         void weatherConditionsDidUpdate(Weather.Conditions conditions);
         void weatherForecastDidUpdate(List<Weather.Conditions> forecast);
@@ -68,7 +72,8 @@ public class UpdateService extends Service {
     private class UpdateTask extends AsyncTask<Void, Void, Void> {
 
         private Sensors.Status mSensorStatus;
-        private Sensors.HourlySummary mSensorsHourlySummary;
+        private Sensors.Summary mSensorsMinutelySummary;
+        private Sensors.Summary mSensorsHourlySummary;
         private Weather.Conditions mWeatherConditions;
         private List<Weather.Conditions> mWeatherHourlyForecast;
         private Tides.Report mTidalPredictions;
@@ -76,6 +81,7 @@ public class UpdateService extends Service {
         @Override
         protected void onPreExecute() {
             mSensorStatus = null;
+            mSensorsMinutelySummary = null;
             mSensorsHourlySummary = null;
             mWeatherConditions = null;
             mTidalPredictions = null;
@@ -86,6 +92,16 @@ public class UpdateService extends Service {
                 mSensorStatus = mClient.sensors().getStatus();
             } catch (Exception e) {
                 Log.e(TAG, "agent api call failed", e);
+            }
+        }
+
+        private void fetchSensorsMinutelySummary(long time) {
+            try {
+                if (mNextSensorMinutelySummaryUpdate < time || mNextSensorMinutelySummaryUpdate == 0) {
+                    mSensorsMinutelySummary = mClient.sensors().getMinutelySummary(0, MINUTES_IN_MINUTELY);
+                    mNextSensorMinutelySummaryUpdate = time + SENSOR_MINUTELY_SUMMARY_INTERVAL;
+                }
+            } catch (IOException e) {
             }
         }
 
@@ -137,8 +153,8 @@ public class UpdateService extends Service {
         protected Void doInBackground(Void... params) {
             long time = System.currentTimeMillis();
 
-
             fetchSensorsStatus(time);
+            fetchSensorsMinutelySummary(time);
             fetchSensorsHourlySummary(time);
             fetchWeatherConditions(time);
             fetchWeatherForecast(time);
@@ -157,6 +173,10 @@ public class UpdateService extends Service {
 
             if (mWeatherConditions != null) {
                 mDelegate.weatherConditionsDidUpdate(mWeatherConditions);
+            }
+
+            if (mSensorsMinutelySummary != null) {
+                mDelegate.sensorsMinutelySummaryDidUpdate(mSensorsMinutelySummary);
             }
 
             if (mSensorsHourlySummary != null) {

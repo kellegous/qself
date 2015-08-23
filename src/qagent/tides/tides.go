@@ -194,13 +194,16 @@ func (r *Report) AllAfter(t time.Time) []*Prediction {
 }
 
 // NextOfState ...
-func (r *Report) NextOfState(now time.Time, s State) *Prediction {
-	for _, pred := range r.Predictions {
-		if pred.State == s && pred.Time.After(now) {
-			return pred
+func (r *Report) NextOfState(now time.Time, s State) int {
+	prds := r.Predictions
+	for i, n := 0, len(prds); i < n; i++ {
+		p := prds[i]
+		if p.State == s && p.Time.After(now) {
+			return i
 		}
 	}
-	return nil
+
+	return -1
 }
 
 type service struct {

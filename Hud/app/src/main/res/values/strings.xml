@@ -8,6 +8,9 @@
     <string name="heart_rate_metric_label">Rate</string>
     <string name="heart_vary_metric_label">Hrv</string>
 
+    <string name="heart_data_view_rate_label">RATE</string>
+    <string name="heart_data_view_vary_label">HRV</string>
+
     <string name="weather_data_view_indoor_title">INDOOR</string>
     <string name="weather_data_view_outdoor_title">OUTDOOR</string>
     <string name="weather_data_view_temp_label">TEMP</string>

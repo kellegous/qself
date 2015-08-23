@@ -24,7 +24,7 @@ task :clean do
 end
 
 file! 'bin/qagent' => FileList['src/**/*', 'dep/**/*'] do
-  sh 'go', 'build', '-o', 'bin/qagent', 'src/qagent/agent.go'
+  sh 'go', 'build', '-o', 'bin/qagent', 'src/qagent/agent.go', 'src/qagent/conns.go'
 end
 
 file! 'bin/qsensor' => FileList['src/qsensor/*', 'dep/**/*'] do

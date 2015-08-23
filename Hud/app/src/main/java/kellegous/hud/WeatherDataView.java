@@ -67,9 +67,6 @@ public class WeatherDataView extends DataView {
         private Paint mForecastTempPaint;
         private Paint mForecastPrecipPaint;
 
-        private Paint mDebugFillPaint;
-        private Paint mDebugStrokePaint;
-
         private float mTitleBaseline;
         private float mValueBaseline;
         private float mLabelBaseline;
@@ -137,13 +134,6 @@ public class WeatherDataView extends DataView {
             mForecastPrecipPaint.setColor(FORECAST_PRECIP_COLOR);
             mForecastPrecipPaint.setTypeface(roboCondRegular);
             mForecastPrecipPaint.setTextSize(FORECAST_PRECIP_TEXT_SIZE);
-
-            mDebugFillPaint = new Paint(0);
-            mDebugFillPaint.setColor(0x11ffff00);
-
-            mDebugStrokePaint = new Paint(0);
-            mDebugStrokePaint.setColor(0x66ff0000);
-            mDebugStrokePaint.setStyle(Paint.Style.STROKE);
         }
 
         private void drawMetric(Canvas canvas, String label, String value, float x) {
@@ -206,7 +196,7 @@ public class WeatherDataView extends DataView {
                 float xb = x + dx * (i+1);
 
                 if (DEBUG) {
-                    canvas.drawRect(xa, 0, xb, getHeight(), mDebugFillPaint);
+                    Debug.rect(canvas, xa, 0, xb, getHeight());
                 }
 
                 String time = conditions.time().format("%H:%M");
@@ -251,11 +241,11 @@ public class WeatherDataView extends DataView {
             super.onDraw(canvas);
 
             if (DEBUG) {
-                canvas.drawLine(0, mTitleBaseline, getWidth(), mTitleBaseline, mDebugStrokePaint);
-                canvas.drawLine(0, mValueBaseline, getWidth(), mValueBaseline, mDebugStrokePaint);
-                canvas.drawLine(0, mLabelBaseline, getWidth(), mLabelBaseline, mDebugStrokePaint);
-                canvas.drawLine(0, mIconBaseline, getWidth(), mIconBaseline, mDebugStrokePaint);
-                canvas.drawLine(0, mForecastTempBaseline, getWidth(), mForecastTempBaseline, mDebugStrokePaint);
+                Debug.hline(canvas, 0, getWidth(), mTitleBaseline);
+                Debug.hline(canvas, 0, getWidth(), mValueBaseline);
+                Debug.hline(canvas, 0, getWidth(), mLabelBaseline);
+                Debug.hline(canvas, 0, getWidth(), mIconBaseline);
+                Debug.hline(canvas, 0, getWidth(), mForecastTempBaseline);
             }
 
             Resources resources = getResources();
@@ -314,7 +304,12 @@ public class WeatherDataView extends DataView {
         }
 
         @Override
-        public void sensorsHourlySummaryDidUpdate(Sensors.HourlySummary summary) {
+        public void sensorsMinutelySummaryDidUpdate(Sensors.Summary summary) {
+
+        }
+
+        @Override
+        public void sensorsHourlySummaryDidUpdate(Sensors.Summary summary) {
 
         }
 
